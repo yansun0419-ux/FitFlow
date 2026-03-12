@@ -12,9 +12,27 @@ func main() {
 	// 1. Initialize Database
 	db.InitDB()
 
-	// 2. Auto Migrate Table Structures
-	// CHANGED: &model.Student{} -> &model.User{}
-	db.DB.AutoMigrate(&model.Role{}, &model.User{}, &model.Course{}, &model.StudentEnrollment{})
+	// 2. Auto migrate only missing tables to avoid SQLite temp-table rebuild issues.
+	ensure := []struct {
+		tableName string
+		model     any
+	}{
+		{tableName: model.Role{}.TableName(), model: &model.Role{}},
+		{tableName: model.User{}.TableName(), model: &model.User{}},
+		{tableName: model.UserInfo{}.TableName(), model: &model.UserInfo{}},
+		{tableName: model.Course{}.TableName(), model: &model.Course{}},
+		{tableName: model.Enrollment{}.TableName(), model: &model.Enrollment{}},
+		{tableName: model.UserDailyActivity{}.TableName(), model: &model.UserDailyActivity{}},
+	}
+
+	for _, item := range ensure {
+		if db.DB.Migrator().HasTable(item.tableName) {
+			continue
+		}
+		if err := db.DB.AutoMigrate(item.model); err != nil {
+			log.Fatalf("auto-migrate failed for %s: %v", item.tableName, err)
+		}
+	}
 
 	// 3. Seed Initial Data
 	seedRoles()
