@@ -1,13 +1,29 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { COURSES } from "../lib/constants";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import { Icons } from "../lib/icons";
 import CalendarView from "../components/CalendarView";
+import CourseDetailsModal from "../components/CourseDetailsModal";
+
+type Course = (typeof COURSES)[0];
 
 const Browse = () => {
   const [activeView, setActiveView] = useState<"grid" | "calendar">("grid");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // Debugging state changes
+  useEffect(() => {
+    console.log("Modal State:", { isModalOpen, selectedCourseId: selectedCourse?.id });
+  }, [isModalOpen, selectedCourse]);
+
+  const handleCourseSelect = (course: Course) => {
+    console.log("Course Selected:", course.title);
+    setSelectedCourse(course);
+    setIsModalOpen(true);
+  };
 
   const filteredCourses = useMemo(() => {
     return COURSES.filter(
@@ -73,7 +89,8 @@ const Browse = () => {
             filteredCourses.map((course) => (
               <Card
                 key={course.id}
-                className="p-0 overflow-hidden hover:-translate-y-1 transition-transform duration-300"
+                className="p-0 overflow-hidden hover:-translate-y-1 transition-transform duration-300 cursor-pointer group"
+                onClick={() => handleCourseSelect(course)}
               >
                 <div className="h-32 bg-linear-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-6xl relative">
                   {course.image}
@@ -82,7 +99,7 @@ const Browse = () => {
                   </div>
                 </div>
                 <div className="p-6">
-                  <h3 className="text-xl font-bold text-slate-800">
+                  <h3 className="text-xl font-bold text-slate-800 group-hover:text-indigo-600 transition-colors">
                     {course.title}
                   </h3>
                   <div className="flex items-center gap-4 text-sm text-slate-500 mt-2 mb-6">
@@ -139,8 +156,17 @@ const Browse = () => {
           )}
         </div>
       ) : (
-        <CalendarView courses={filteredCourses} />
+        <CalendarView 
+          courses={filteredCourses} 
+          onEventClick={handleCourseSelect}
+        />
       )}
+
+      <CourseDetailsModal
+        course={selectedCourse}
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+      />
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import { useCalendarApp, ScheduleXCalendar } from "@schedule-x/react";
 import {
   createViewMonthGrid,
@@ -10,16 +10,6 @@ import "@schedule-x/theme-default/dist/index.css";
 import { COURSES } from "../lib/constants";
 import { Icons } from "../lib/icons";
 
-const DAY_MAP: Record<string, string> = {
-  Mon: "2026-03-09",
-  Tue: "2026-03-10",
-  Wed: "2026-03-11",
-  Thu: "2026-03-12",
-  Fri: "2026-03-13",
-  Sat: "2026-03-14",
-  Sun: "2026-03-15",
-};
-
 const COLOR_STYLES = [
   { bg: "#f5f3ff", border: "#6366f1", text: "#4338ca" }, // Indigo
   { bg: "#fff1f2", border: "#f43f5e", text: "#9f1239" }, // Rose
@@ -30,9 +20,9 @@ const COLOR_STYLES = [
 
 interface CalendarViewProps {
   courses?: typeof COURSES;
+  onEventClick?: (course: typeof COURSES[0]) => void;
 }
 
-// Stable Custom Event Component
 const CustomEvent = (props: any) => {
   const event = props.calendarEvent;
   const spotsColor = event.spots === 0 ? "#ef4444" : event.spots < 5 ? "#f59e0b" : "#10b981";
@@ -72,7 +62,6 @@ const CustomEvent = (props: any) => {
   );
 };
 
-// Month View Event Component (Compact)
 const MonthEvent = (props: any) => {
   const event = props.calendarEvent;
   const colors = event._style || COLOR_STYLES[0];
@@ -103,12 +92,31 @@ const MonthEvent = (props: any) => {
   );
 };
 
-const CalendarView = ({ courses = COURSES }: CalendarViewProps) => {
-  const now = Temporal.Now.zonedDateTimeISO("UTC");
+const CalendarView = ({ courses = COURSES, onEventClick }: CalendarViewProps) => {
+  const now = useMemo(() => Temporal.Now.zonedDateTimeISO("UTC"), []);
+  const today = useMemo(() => now.toPlainDate(), [now]);
+
+  // Generate dynamic day map for the current week
+  const dayMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    
+    // Find the Monday of the current week
+    // dayOfWeek: 1 (Mon) to 7 (Sun)
+    const currentDayOfWeek = today.dayOfWeek;
+    const diffToMonday = currentDayOfWeek - 1;
+    const monday = today.subtract({ days: diffToMonday });
+
+    days.forEach((day, index) => {
+      map[day] = monday.add({ days: index }).toString();
+    });
+    
+    return map;
+  }, [today]);
 
   const events = useMemo(() => {
     return courses.map((course, index) => {
-      const dateStr = DAY_MAP[course.day.trim()];
+      const dateStr = dayMap[course.day.trim()];
       if (!dateStr) return null;
 
       try {
@@ -117,10 +125,10 @@ const CalendarView = ({ courses = COURSES }: CalendarViewProps) => {
         if (period === "PM" && hours !== 12) hours += 12;
         if (period === "AM" && hours === 12) hours = 0;
 
-        const startStr = `${dateStr}T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00[UTC]`;
-        const startZdt = Temporal.ZonedDateTime.from(startStr);
-        const endZdt = startZdt.add({ hours: 1 });
-        const isPast = Temporal.ZonedDateTime.compare(startZdt, now) < 0;
+        const startTimeStr = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
+        const start = Temporal.ZonedDateTime.from(`${dateStr}T${startTimeStr}[UTC]`);
+        const end = start.add({ hours: 1 });
+        const isPast = Temporal.ZonedDateTime.compare(start, now) < 0;
 
         return {
           id: String(course.id),
@@ -129,8 +137,8 @@ const CalendarView = ({ courses = COURSES }: CalendarViewProps) => {
           spots: course.spots,
           image: course.image,
           time: course.time,
-          start: startZdt,
-          end: endZdt,
+          start,
+          end,
           calendarId: course.type.toLowerCase(),
           _isPast: isPast,
           _style: COLOR_STYLES[index % COLOR_STYLES.length]
@@ -139,18 +147,26 @@ const CalendarView = ({ courses = COURSES }: CalendarViewProps) => {
         return null;
       }
     }).filter(event => event !== null);
-  }, [courses, now]);
+  }, [courses, dayMap, now]);
 
   const calendarApp = useCalendarApp({
     views: [createViewWeek(), createViewMonthGrid(), createViewDay()],
     events: events as any[],
-    defaultView: "week",
-    dayBoundaries: { start: "07:00", end: "22:00" },
-  }, []);
-
-  useEffect(() => {
-    if (calendarApp && events) calendarApp.events.set(events as any[]);
-  }, [events, calendarApp]);
+    defaultView: createViewWeek().name,
+    selectedDate: today,
+    dayBoundaries: {
+      start: '05:00',
+      end: '23:00',
+    },
+    callbacks: {
+      onEventClick(calendarEvent, e: UIEvent) {
+        const course = courses.find(c => String(c.id) === String(calendarEvent.id));
+        if (course && onEventClick) {
+          onEventClick(course);
+        }
+      },
+    }
+  }, [events, onEventClick, courses, today]);
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden sx-react-calendar-wrapper">
@@ -163,7 +179,6 @@ const CalendarView = ({ courses = COURSES }: CalendarViewProps) => {
           border: none !important;
         }
         
-        /* HIDE DEFAULT CONTENT */
         .sx__event-time, 
         .sx__event-title,
         .sx__time-grid-event-inner > *:not(.sx__event-card-wrapper),
@@ -255,7 +270,6 @@ const CalendarView = ({ courses = COURSES }: CalendarViewProps) => {
           border-radius: 50%;
         }
 
-        /* Hover Effects */
         .sx__event:hover {
           transform: translateY(-1px);
           box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
