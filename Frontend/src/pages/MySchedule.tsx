@@ -25,7 +25,7 @@ import {
 import { useAuthStore } from "../store/authStore";
 import toast from "react-hot-toast";
 
-type TimeRange = "week" | "month" | "year";
+type TimeRange = "week" | "month" | "3months";
 
 type ScheduleCourse = {
   id: number;
@@ -68,7 +68,7 @@ const toBackendRange = (timeRange: TimeRange): "7d" | "1m" | "3m" => {
   if (timeRange === "month") {
     return "1m";
   }
-  if (timeRange === "year") {
+  if (timeRange === "3months") {
     return "3m";
   }
   return "7d";
@@ -133,7 +133,7 @@ const MySchedule = () => {
   const frequencyData = useMemo(() => {
     const daily = analytics?.daily || [];
 
-    if (timeRange === "year") {
+    if (timeRange === "3months") {
       const monthTotals: Record<string, number> = {};
       daily.forEach((item) => {
         const label = format(parseISO(item.date), "MMM");
@@ -278,7 +278,7 @@ const MySchedule = () => {
               >
                 <option value="week">This Week</option>
                 <option value="month">This Month</option>
-                <option value="year">This Year</option>
+                <option value="3months">Last 3 Months</option>
               </select>
               <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none text-slate-400">
                 <Icons.ChevronDown />
