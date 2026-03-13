@@ -7,8 +7,8 @@ import {
 } from "@schedule-x/calendar";
 import { Temporal } from "temporal-polyfill";
 import "@schedule-x/theme-default/dist/index.css";
-import { COURSES } from "../lib/constants";
 import { Icons } from "../lib/icons";
+import type { CourseCardItem } from "./CourseDetailsModal";
 
 const COLOR_STYLES = [
   { bg: "#f5f3ff", border: "#6366f1", text: "#4338ca" }, // Indigo
@@ -19,8 +19,9 @@ const COLOR_STYLES = [
 ];
 
 interface CalendarViewProps {
-  courses?: typeof COURSES;
-  onEventClick?: (course: typeof COURSES[0]) => void;
+  courses?: CourseCardItem[];
+  onEventClick?: (course: CourseCardItem) => void;
+  enrolledCourseIds?: number[];
 }
 
 const CustomEvent = (props: any) => {
@@ -29,21 +30,24 @@ const CustomEvent = (props: any) => {
   const colors = event._style || COLOR_STYLES[0];
 
   return (
-    <div 
-      className={`sx__event-card-wrapper ${event._isPast ? 'sx__event--past' : ''}`}
-      style={{ 
-        backgroundColor: colors.bg, 
+    <div
+      className={`sx__event-card-wrapper ${event._isPast ? "sx__event--past" : ""}`}
+      style={{
+        backgroundColor: colors.bg,
         borderLeft: `4px solid ${colors.border}`,
-        height: '100%',
-        width: '100%',
-        display: 'flex',
-        flexDirection: 'column'
+        height: "100%",
+        width: "100%",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
       <div className="sx__event-card-inner">
         <div className="sx__event-card-header">
           <span className="sx__event-card-emoji">{event.image}</span>
-          <span className="sx__event-card-title" style={{ color: colors.text }}>{event.title}</span>
+          <span className="sx__event-card-title" style={{ color: colors.text }}>
+            {event.title}
+          </span>
+          {event._enrolled && <span className="sx__event-enrolled-dot" />}
         </div>
 
         <div className="sx__event-card-instructor">
@@ -52,9 +56,17 @@ const CustomEvent = (props: any) => {
         </div>
 
         <div className="sx__event-card-footer">
-          <div className="sx__event-status-badge" style={{ backgroundColor: `${spotsColor}20`, color: spotsColor }}>
-            <div className="sx__event-status-dot" style={{ backgroundColor: spotsColor }} />
-            <span>{event.spots === 0 ? 'Full' : `${event.spots} spots left`}</span>
+          <div
+            className="sx__event-status-badge"
+            style={{ backgroundColor: `${spotsColor}20`, color: spotsColor }}
+          >
+            <div
+              className="sx__event-status-dot"
+              style={{ backgroundColor: spotsColor }}
+            />
+            <span>
+              {event.spots === 0 ? "Full" : `${event.spots} spots left`}
+            </span>
           </div>
         </div>
       </div>
@@ -67,32 +79,42 @@ const MonthEvent = (props: any) => {
   const colors = event._style || COLOR_STYLES[0];
 
   return (
-    <div 
+    <div
       className="sx__month-event-wrapper"
-      style={{ 
-        backgroundColor: colors.bg, 
+      style={{
+        backgroundColor: colors.bg,
         borderLeft: `2px solid ${colors.border}`,
-        padding: '2px 6px',
-        borderRadius: '4px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '4px',
-        fontSize: '0.7rem',
+        padding: "2px 6px",
+        borderRadius: "4px",
+        display: "flex",
+        alignItems: "center",
+        gap: "4px",
+        fontSize: "0.7rem",
         fontWeight: 600,
         color: colors.text,
-        overflow: 'hidden',
-        whiteSpace: 'nowrap',
-        width: '100%'
+        overflow: "hidden",
+        whiteSpace: "nowrap",
+        width: "100%",
       }}
     >
       <span className="shrink-0">{event.image}</span>
-      <span className="shrink-0 opacity-70 font-bold" style={{ fontSize: '0.6rem' }}>{event.time.split(' ')[0]}</span>
+      <span
+        className="shrink-0 opacity-70 font-bold"
+        style={{ fontSize: "0.6rem" }}
+      >
+        {event.time.split(" ")[0]}
+      </span>
       <span className="truncate">{event.title}</span>
+      {event._enrolled && <span className="sx__month-enrolled-dot" />}
     </div>
   );
 };
 
-const CalendarView = ({ courses = COURSES, onEventClick }: CalendarViewProps) => {
+const CalendarView = ({
+  courses = [],
+  onEventClick,
+  enrolledCourseIds = [],
+}: CalendarViewProps) => {
   const now = useMemo(() => Temporal.Now.zonedDateTimeISO("UTC"), []);
   const today = useMemo(() => now.toPlainDate(), [now]);
 
@@ -100,7 +122,7 @@ const CalendarView = ({ courses = COURSES, onEventClick }: CalendarViewProps) =>
   const dayMap = useMemo(() => {
     const map: Record<string, string> = {};
     const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-    
+
     // Find the Monday of the current week
     // dayOfWeek: 1 (Mon) to 7 (Sun)
     const currentDayOfWeek = today.dayOfWeek;
@@ -110,63 +132,73 @@ const CalendarView = ({ courses = COURSES, onEventClick }: CalendarViewProps) =>
     days.forEach((day, index) => {
       map[day] = monday.add({ days: index }).toString();
     });
-    
+
     return map;
   }, [today]);
 
   const events = useMemo(() => {
-    return courses.map((course, index) => {
-      const dateStr = dayMap[course.day.trim()];
-      if (!dateStr) return null;
+    return courses
+      .map((course, index) => {
+        const dateStr = dayMap[course.day.trim()];
+        if (!dateStr) return null;
 
-      try {
-        const [timePart, period] = course.time.split(" ");
-        let [hours, minutes] = timePart.split(":").map(Number);
-        if (period === "PM" && hours !== 12) hours += 12;
-        if (period === "AM" && hours === 12) hours = 0;
+        try {
+          const [timePart, period] = course.time.split(" ");
+          let [hours, minutes] = timePart.split(":").map(Number);
+          if (period === "PM" && hours !== 12) hours += 12;
+          if (period === "AM" && hours === 12) hours = 0;
 
-        const startTimeStr = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
-        const start = Temporal.ZonedDateTime.from(`${dateStr}T${startTimeStr}[UTC]`);
-        const end = start.add({ hours: 1 });
-        const isPast = Temporal.ZonedDateTime.compare(start, now) < 0;
+          const startTimeStr = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
+          const start = Temporal.ZonedDateTime.from(
+            `${dateStr}T${startTimeStr}[UTC]`,
+          );
+          const end = start.add({ hours: 1 });
+          const isPast = Temporal.ZonedDateTime.compare(start, now) < 0;
 
-        return {
-          id: String(course.id),
-          title: course.title,
-          instructor: course.instructor,
-          spots: course.spots,
-          image: course.image,
-          time: course.time,
-          start,
-          end,
-          calendarId: course.type.toLowerCase(),
-          _isPast: isPast,
-          _style: COLOR_STYLES[index % COLOR_STYLES.length]
-        };
-      } catch (e) {
-        return null;
-      }
-    }).filter(event => event !== null);
-  }, [courses, dayMap, now]);
-
-  const calendarApp = useCalendarApp({
-    views: [createViewWeek(), createViewMonthGrid(), createViewDay()],
-    events: events as any[],
-    defaultView: createViewWeek().name,
-    selectedDate: today,
-    dayBoundaries: {
-      start: '05:00',
-      end: '23:00',
-    },
-    callbacks: {
-      onEventClick(calendarEvent, e: UIEvent) {
-        const course = courses.find(c => String(c.id) === String(calendarEvent.id));
-        if (course && onEventClick) {
-          onEventClick(course);
+          return {
+            id: String(course.id),
+            title: course.title,
+            instructor: course.instructor,
+            spots: course.spots,
+            image: course.image,
+            time: course.time,
+            start,
+            end,
+            calendarId: course.type.toLowerCase(),
+            _isPast: isPast,
+            _style: COLOR_STYLES[index % COLOR_STYLES.length],
+            _enrolled: enrolledCourseIds.includes(course.id),
+          };
+        } catch (e) {
+          return null;
         }
+      })
+      .filter((event) => event !== null);
+  }, [courses, dayMap, now, enrolledCourseIds]);
+
+  const calendarApp = useCalendarApp(
+    {
+      views: [createViewWeek(), createViewMonthGrid(), createViewDay()],
+      events: events as any[],
+      defaultView: createViewWeek().name,
+      selectedDate: today,
+      dayBoundaries: {
+        start: "05:00",
+        end: "23:00",
       },
-    }
-  }, [events, onEventClick, courses, today]);
+      callbacks: {
+        onEventClick(calendarEvent, e: UIEvent) {
+          const course = courses.find(
+            (c) => String(c.id) === String(calendarEvent.id),
+          );
+          if (course && onEventClick) {
+            onEventClick(course);
+          }
+        },
+      },
+    },
+    [events, onEventClick, courses, today],
+  );
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden sx-react-calendar-wrapper">
@@ -224,6 +256,15 @@ const CalendarView = ({ courses = COURSES, onEventClick }: CalendarViewProps) =>
           gap: 8px;
         }
 
+        .sx__event-enrolled-dot {
+          width: 7px;
+          height: 7px;
+          border-radius: 9999px;
+          background: #16a34a;
+          flex-shrink: 0;
+          margin-left: auto;
+        }
+
         .sx__event-card-title {
           font-weight: 700 !important;
           font-size: 0.8rem !important;
@@ -252,6 +293,17 @@ const CalendarView = ({ courses = COURSES, onEventClick }: CalendarViewProps) =>
           margin-top: auto;
           display: flex;
           align-items: center;
+          justify-content: space-between;
+          gap: 6px;
+        }
+
+        .sx__month-enrolled-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 9999px;
+          background: #16a34a;
+          margin-left: auto;
+          flex-shrink: 0;
         }
 
         .sx__event-status-badge {
@@ -284,7 +336,7 @@ const CalendarView = ({ courses = COURSES, onEventClick }: CalendarViewProps) =>
         calendarApp={calendarApp}
         customComponents={{
           timeGridEvent: CustomEvent,
-          monthGridEvent: MonthEvent
+          monthGridEvent: MonthEvent,
         }}
       />
     </div>

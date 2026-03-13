@@ -30,9 +30,24 @@ async function postJson<TResponse>(path: string, body: unknown): Promise<TRespon
   return (await response.json()) as TResponse;
 }
 
+async function getJson<TResponse>(path: string): Promise<TResponse> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  return (await response.json()) as TResponse;
+}
+
 async function authRequest<TResponse>(
   path: string,
-  method: "GET" | "PUT",
+  method: "GET" | "PUT" | "POST",
   token: string,
   body?: unknown,
 ): Promise<TResponse> {
@@ -119,3 +134,79 @@ export const getProfileRequest = (token: string) =>
 
 export const updateProfileRequest = (token: string, profile: UserProfile) =>
   authRequest<{ message: string }>("/auth/profile", "PUT", token, profile);
+
+export type BackendClass = {
+  id: number;
+  name: string;
+  course_code: string;
+  description: string;
+  start_time: string;
+  end_time: string;
+  capacity: number;
+  duration: number;
+  category: string;
+  weekday: string;
+  spot: number;
+};
+
+export type ListClassesResponse = {
+  page: number;
+  page_size: number;
+  total: number;
+  classes: BackendClass[];
+};
+
+export const listClassesRequest = (page = 1) =>
+  getJson<ListClassesResponse>(`/classes?page=${page}`);
+
+export const registerClassRequest = (token: string, courseId: number) =>
+  authRequest<{ message: string }>("/classes/register", "POST", token, {
+    course_id: courseId,
+  });
+
+export const dropClassRequest = (token: string, courseId: number) =>
+  authRequest<{ message: string }>("/classes/drop", "POST", token, {
+    course_id: courseId,
+  });
+
+export type UserEnrollmentsResponse = {
+  courses: BackendClass[];
+};
+
+export const getUserEnrollmentsRequest = (token: string, userId: number) =>
+  authRequest<UserEnrollmentsResponse>(
+    `/users/${userId}/enrollments`,
+    "GET",
+    token,
+  );
+
+export type UserAnalyticsResponse = {
+  analytics: {
+    user_id: number;
+    range: "7d" | "1m" | "3m";
+    from_date: string;
+    to_date: string;
+    total_classes: number;
+    active_days: number;
+    daily: Array<{
+      date: string;
+      classes: number;
+    }>;
+    categories: Array<{
+      category: string;
+      classes: number;
+      percentage: number;
+    }>;
+  };
+};
+
+export const getUserAnalyticsRequest = (
+  token: string,
+  userId: number,
+  range: "7d" | "1m" | "3m",
+) =>
+  authRequest<UserAnalyticsResponse>(
+    `/users/${userId}/analytics?range=${range}`,
+    "GET",
+    token,
+  );
