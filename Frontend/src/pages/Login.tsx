@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
@@ -5,22 +6,48 @@ import Input from "../components/ui/Input";
 import { Icons } from "../lib/icons";
 import { useAuthStore } from "../store/authStore";
 import toast from "react-hot-toast";
+import {
+  extractUserIdFromToken,
+  loginRequest,
+  roleIdToFrontendRole,
+} from "../lib/api";
 
 import BackgroundBlobs from "../components/ui/BackgroundBlobs";
 
 const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuthStore();
+  const [formData, setFormData] = useState({
+    email: "",
+    password: "",
+  });
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = () => {
-    // In a real app, you would make an API call here.
-    // fetch('/api/login', ...).then(res => res.json()).then(data => login(data.token))
+  const handleLogin = async () => {
+    if (loading) {
+      return;
+    }
 
-    const mockToken =
-      "mock-jwt-token-" + Math.random().toString(36).substring(7);
-    login(mockToken);
-    toast.success("Welcome back! Successfully logged in.");
-    navigate("/courses");
+    if (!formData.email || !formData.password) {
+      toast.error("Please enter email and password.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await loginRequest(formData.email, formData.password);
+      const frontendRole = roleIdToFrontendRole(data.role_id);
+      const userId = extractUserIdFromToken(data.token);
+
+      login(data.token, frontendRole, userId);
+      toast.success("Welcome back! Successfully logged in.");
+      navigate("/");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Login failed";
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -48,18 +75,32 @@ const Login = () => {
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
               <Icons.Mail />
             </div>
-            <Input type="email" placeholder="Email Address" />
+            <Input
+              type="email"
+              placeholder="Email Address"
+              value={formData.email}
+              onChange={(e) =>
+                setFormData({ ...formData, email: e.target.value })
+              }
+            />
           </div>
 
           <div className="relative group">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-indigo-500 transition-colors">
               <Icons.Lock />
             </div>
-            <Input type="password" placeholder="Password" />
+            <Input
+              type="password"
+              placeholder="Password"
+              value={formData.password}
+              onChange={(e) =>
+                setFormData({ ...formData, password: e.target.value })
+              }
+            />
           </div>
 
-          <Button className="w-full py-3.5 text-lg" onClick={handleLogin}>
-            Sign In
+          <Button className="w-full py-3.5 text-lg mt-2" onClick={handleLogin}>
+            {loading ? "Signing In..." : "Sign In"}
           </Button>
         </div>
 
@@ -75,5 +116,6 @@ const Login = () => {
     </div>
   );
 };
+
 
 export default Login;

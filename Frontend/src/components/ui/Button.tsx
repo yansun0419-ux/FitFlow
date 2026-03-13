@@ -8,7 +8,7 @@ const Button = ({
 }: {
   children: React.ReactNode;
   variant?: "primary" | "secondary" | "danger" | "ghost" | "outline";
-  onClick?: () => void;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
   className?: string;
 }) => {
   const baseStyle =
