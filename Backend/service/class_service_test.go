@@ -18,11 +18,23 @@ var testSeq uint64
 func setupClassServiceTestDB(t *testing.T) {
 	t.Helper()
 
-	dsn := fmt.Sprintf("file:test_%d?mode=memory&cache=shared", time.Now().UnixNano())
+	// 关键点：
+	// 1) 不用 cache=shared，避免跨连接共享导致的锁/阻塞
+	// 2) 加上 _busy_timeout，避免 SQLite 等锁时无限卡住
+	dsn := fmt.Sprintf("file:test_%d?mode=memory&_busy_timeout=5000", time.Now().UnixNano())
+
 	testDB, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open test database: %v", err)
 	}
+
+	// 限制为单连接，进一步避免并发锁问题
+	sqlDB, err := testDB.DB()
+	if err != nil {
+		t.Fatalf("failed to get sql DB: %v", err)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
 
 	if err := testDB.Exec("PRAGMA foreign_keys = ON;").Error; err != nil {
 		t.Fatalf("failed to enable foreign keys: %v", err)
