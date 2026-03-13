@@ -52,7 +52,11 @@ const Register = () => {
           invitationCode,
         );
       } else {
-        await registerStudentRequest(formData.fullName, formData.email, formData.password);
+        await registerStudentRequest(
+          formData.fullName,
+          formData.email,
+          formData.password,
+        );
       }
 
       // Keep existing UX: auto-login immediately after successful registration.
@@ -64,7 +68,8 @@ const Register = () => {
       toast.success("Registration successful! Welcome to FitFlow.");
       navigate("/");
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Registration failed";
+      const message =
+        error instanceof Error ? error.message : "Registration failed";
       toast.error(message);
     } finally {
       setLoading(false);
@@ -176,7 +181,10 @@ const Register = () => {
             </div>
           )}
 
-          <Button className="w-full py-3.5 text-lg mt-2" onClick={handleRegister}>
+          <Button
+            className="w-full py-3.5 text-lg mt-2"
+            onClick={handleRegister}
+          >
             {loading ? "Creating Account..." : "Create Account"}
           </Button>
         </div>

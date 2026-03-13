@@ -30,6 +30,28 @@ async function postJson<TResponse>(path: string, body: unknown): Promise<TRespon
   return (await response.json()) as TResponse;
 }
 
+async function authRequest<TResponse>(
+  path: string,
+  method: "GET" | "PUT",
+  token: string,
+  body?: unknown,
+): Promise<TResponse> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseApiError(response));
+  }
+
+  return (await response.json()) as TResponse;
+}
+
 export type LoginResponse = {
   message: string;
   token: string;
@@ -81,3 +103,19 @@ export const extractUserIdFromToken = (token: string): number | null => {
     return null;
   }
 };
+
+export type UserProfile = {
+  name: string;
+  email: string;
+  avatar_url: string;
+  date_of_birth: string;
+  gender: string;
+  phone_number: string;
+  address: string;
+};
+
+export const getProfileRequest = (token: string) =>
+  authRequest<UserProfile>("/auth/profile", "GET", token);
+
+export const updateProfileRequest = (token: string, profile: UserProfile) =>
+  authRequest<{ message: string }>("/auth/profile", "PUT", token, profile);
