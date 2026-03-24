@@ -34,7 +34,38 @@ It does not modify `Sprint 2.md` and is intended for later merge.
 
 - Upgrade-to-manager profile action remains a placeholder because backend flow is not fully available yet.
 
-## Frontend Unit Test Implementation
+## Frontend Test Implementation
+
+### Instructor-Aligned Test Strategy (Show Both)
+
+- Cypress is required and is used for browser-level E2E/smoke verification.
+- Framework-specific unit tests are also required and are implemented with Vitest + Testing Library.
+- Demo order recommendation: show Cypress first, then unit tests.
+
+### Cypress Specs Added
+
+- `cypress/e2e/auth-smoke.cy.ts`
+  - Login page input interaction and password show/hide toggle
+
+- `cypress/e2e/login-validation.cy.ts`
+  - Empty login submit shows required field errors
+  - Invalid email format shows validation error
+
+- `cypress/e2e/register-validation.cy.ts`
+  - Empty register submit shows required field errors
+  - Password strength indicator updates while typing
+  - Manager registration requires invitation code
+
+- `cypress/e2e/auth-guard.cy.ts`
+  - Protected route redirects unauthenticated users to login
+
+### Cypress Execution Result (Latest)
+
+- Specs: 4 passed
+- Tests: 7 passed
+- Status: all Cypress specs passed
+
+## Frontend Unit Test Implementation (Engineering Layer)
 
 ### Test Framework Setup
 
@@ -67,10 +98,68 @@ It does not modify `Sprint 2.md` and is intended for later merge.
   - Cancel changes restores original profile values
   - Save confirmation flow calls profile update API on confirm
 
+- `src/lib/api.test.ts`
+  - Backend role-id mapping to frontend role
+  - JWT payload user-id extraction
+  - Invalid token fallback behavior
+
+- `src/store/authStore.test.ts`
+  - Login writes state and localStorage
+  - Login without user id removes stale `user_id`
+  - Logout clears store state and localStorage
+
 ### Test Execution Result
 
-- Test files: 4 passed
-- Tests: 13 passed
+- Test files: 6 passed
+- Tests: 20 passed
+
+### Cypress Commands
+
+- Open Cypress UI:
+  - `npm run cypress:open`
+- Run Cypress in headless mode:
+  - `npm run cypress:run`
+
+### Notes For Submission Strategy
+
+- Final presentation should include both Cypress results and unit test results.
+- Keep Cypress output and unit test output screenshots or terminal logs for evidence.
+
+## Testing Scope Guidance
+
+### Assignment Full-Score Practical Target
+
+- At least one valid Cypress E2E flow is implemented and runnable.
+- Unit tests cover core frontend logic and key user interactions (auth, validation, profile edit flow).
+- Test commands are documented and test results are reproducible.
+- Frontend build and lint remain green after test additions.
+
+## Frontend Submission Checklist
+
+- Cypress tests run successfully in front of instructor or with recorded output.
+- Unit tests run successfully in front of instructor or with recorded output.
+- Frontend lint and build are green.
+- Sprint 2 report includes:
+  - Frontend completed work summary
+  - Cypress test list
+  - Unit test list
+  - Test run commands
+  - Test pass results
+- Git commits are pushed (grading checks commit history).
+
+## Demo-Day Execution Plan (Frontend Owner)
+
+- Step 1: Run `npm run cypress:run` and show passing specs.
+- Step 2: Run `npm test` and show passing unit tests.
+- Step 3: Run `npm run lint` and `npm run build` as quality proof.
+- Step 4: Demo key integrated flow in UI (login/register/profile update or course browse).
+
+### Industry Baseline Target (Team Product Stage)
+
+- Keep smoke E2E tests for critical user journeys (login/register/browse/profile update).
+- Unit tests should prioritize deterministic business logic and state transitions.
+- PR gate should include `lint + test + build` checks.
+- Expand tests gradually around regressions and bug-prone areas instead of chasing raw test count.
 
 ### Commands Used
 

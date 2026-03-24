@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",
+    "cypress:open": "cypress open",
+    "cypress:run": "cypress run --e2e --browser electron",
     "preview": "vite preview"
   },
   "dependencies": {
