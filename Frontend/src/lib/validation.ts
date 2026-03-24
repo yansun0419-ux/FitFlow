@@ -56,7 +56,9 @@ export const getPasswordStrength = (password: string): PasswordStrength => {
 export const formatPhoneNumberUS = (input: string): string => {
   const digits = input.replace(/\D/g, "").slice(0, 11);
 
-  const normalized = digits.startsWith("1") ? digits.slice(1) : digits;
+  const normalized = digits.length === 11 && digits.startsWith("1")
+    ? digits.slice(1)
+    : digits;
 
   if (!normalized) {
     return "";
