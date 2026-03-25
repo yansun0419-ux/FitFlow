@@ -290,4 +290,49 @@ export const Icons = {
       />
     </svg>
   ),
+  Plus: ({ className }: { className?: string }) => (
+    <svg
+      className={className || "w-4 h-4"}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M12 4v16m8-8H4"
+      />
+    </svg>
+  ),
+  Edit: ({ className }: { className?: string }) => (
+    <svg
+      className={className || "w-4 h-4"}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M11 5h2m-7 14h12a2 2 0 002-2v-4M5 19l.586-.586a2 2 0 01.707-.443L10 16l6.586-6.586a2 2 0 000-2.828l-.172-.172a2 2 0 00-2.828 0L7 13l-1.971 3.707a2 2 0 01-.443.707L4 18l1 1z"
+      />
+    </svg>
+  ),
+  Trash: ({ className }: { className?: string }) => (
+    <svg
+      className={className || "w-4 h-4"}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M19 7H5m2 0V5a1 1 0 011-1h8a1 1 0 011 1v2m-9 4v6m4-6v6m4-6v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12"
+      />
+    </svg>
+  ),
 };
