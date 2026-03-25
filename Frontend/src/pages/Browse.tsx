@@ -207,6 +207,7 @@ const Browse = () => {
       return;
     }
 
+    const scrollY = window.scrollY;
     setBooking(true);
     try {
       await registerClassRequest(token, course.id);
@@ -215,6 +216,7 @@ const Browse = () => {
       );
       setIsModalOpen(false);
       await Promise.all([loadClasses(), loadEnrollments()]);
+      window.scrollTo(0, scrollY);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to book class";
@@ -242,6 +244,7 @@ const Browse = () => {
       return;
     }
 
+    const scrollY = window.scrollY;
     setDropping(true);
     try {
       await dropClassRequest(token, courseToDrop.id);
@@ -249,6 +252,7 @@ const Browse = () => {
       setCourseToDrop(null);
       setIsModalOpen(false);
       await Promise.all([loadClasses(), loadEnrollments()]);
+      window.scrollTo(0, scrollY);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to drop class";
@@ -423,6 +427,7 @@ const Browse = () => {
       return;
     }
 
+    const scrollY = window.scrollY;
     setClassSubmitting(true);
     setClassFormError(null);
     try {
@@ -442,6 +447,7 @@ const Browse = () => {
       setClassModalOpen(false);
       setClassEditingTarget(null);
       await loadClasses();
+      window.scrollTo(0, scrollY);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to save class";
@@ -457,6 +463,7 @@ const Browse = () => {
       return;
     }
 
+    const scrollY = window.scrollY;
     setClassDeleting(true);
     try {
       await deleteClassRequest(token, classToDelete.id);
@@ -467,6 +474,7 @@ const Browse = () => {
         setIsModalOpen(false);
       }
       await loadClasses();
+      window.scrollTo(0, scrollY);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Failed to delete class";

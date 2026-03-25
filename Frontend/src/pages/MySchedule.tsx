@@ -134,20 +134,23 @@ const MySchedule = () => {
     const daily = analytics?.daily || [];
 
     if (timeRange === "3m") {
-      const monthTotals: Record<string, number> = {};
+      const monthTotals: Record<string, { label: string; count: number }> = {};
       daily.forEach((item) => {
-        const label = format(parseISO(item.date), "MMM");
-        monthTotals[label] = (monthTotals[label] || 0) + item.classes;
+        const key = format(parseISO(item.date), "MMM");
+        monthTotals[key] = {
+          label: format(parseISO(item.date), "MMM yyyy"),
+          count: (monthTotals[key]?.count || 0) + item.classes,
+        };
       });
 
-      return Object.entries(monthTotals).map(([label, count]) => ({
-        label,
-        count,
-      }));
+      return Object.values(monthTotals);
     }
 
     return daily.map((item) => ({
-      label: format(parseISO(item.date), timeRange === "7d" ? "EEE" : "d"),
+      label: format(
+        parseISO(item.date),
+        timeRange === "7d" ? "EEE, MMM d" : "MMM d",
+      ),
       count: item.classes,
       date: item.date,
     }));
@@ -313,35 +316,74 @@ const MySchedule = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card className="p-6">
-              <h4 className="text-sm font-bold text-slate-800 mb-4">
-                Activity Frequency ({TIME_RANGE_LABELS[timeRange]})
-              </h4>
-              <div className="h-48 w-full">
+              <div className="flex items-start justify-between mb-4">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800">
+                    Activity Frequency
+                  </h4>
+                  <p className="text-xs text-slate-500 mt-1">
+                    {TIME_RANGE_LABELS[timeRange]}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-slate-500">Sessions</p>
+                  <p className="text-lg font-bold text-indigo-600">
+                    {totalSessions}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {analytics?.active_days || 0} active{" "}
+                    {(analytics?.active_days || 0) === 1 ? "day" : "days"}
+                  </p>
+                </div>
+              </div>
+              <div className="h-56 w-full">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={frequencyData}>
+                  <BarChart
+                    data={frequencyData}
+                    margin={{ bottom: 40, left: 30 }}
+                  >
                     <XAxis
                       dataKey="label"
-                      fontSize={10}
+                      fontSize={9}
                       axisLine={false}
                       tickLine={false}
+                      angle={timeRange === "3m" ? 0 : -45}
+                      textAnchor={timeRange === "3m" ? "middle" : "end"}
                     />
-                    <YAxis hide />
+                    <YAxis
+                      fontSize={9}
+                      axisLine={false}
+                      tickLine={false}
+                      allowDecimals={false}
+                      label={{
+                        value: "Sessions",
+                        angle: -90,
+                        position: "insideLeft",
+                        style: { fontSize: 9, fill: "#94a3b8" },
+                      }}
+                    />
                     <Tooltip
                       contentStyle={{
                         borderRadius: "12px",
-                        border: "none",
+                        border: "1px solid #e2e8f0",
                         boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                        backgroundColor: "#fff",
                       }}
+                      formatter={(value) => [
+                        `${value} session${(value as number) === 1 ? "" : "s"}`,
+                        "Classes",
+                      ]}
                       cursor={{ fill: "#f1f5f9" }}
                     />
-                    <Bar
-                      dataKey="count"
-                      fill="var(--color-brand-indigo)"
-                      radius={[4, 4, 0, 0]}
-                    />
+                    <Bar dataKey="count" fill="#6366f1" radius={[6, 6, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+              {frequencyData.length === 0 && (
+                <p className="text-xs text-slate-400 text-center py-4">
+                  No sessions yet for this period
+                </p>
+              )}
             </Card>
             <Card className="p-6">
               <h4 className="text-sm font-bold text-slate-800 mb-4">

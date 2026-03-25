@@ -135,29 +135,31 @@ const CalendarView = ({
   const now = useMemo(() => Temporal.Now.zonedDateTimeISO("UTC"), []);
   const today = useMemo(() => now.toPlainDate(), [now]);
 
-  // Generate dynamic day map for the current week
-  const dayMap = useMemo(() => {
-    const map: Record<string, string> = {};
+  // Generate date strings for all weeks in a ±3 month window
+  const dayDatePairs = useMemo(() => {
     const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+    const startDate = today.subtract({ months: 3 });
+    const endDate = today.add({ months: 3 });
+    const pairs: Array<{ day: string; date: string }> = [];
 
-    // Find the Monday of the current week
-    // dayOfWeek: 1 (Mon) to 7 (Sun)
-    const currentDayOfWeek = today.dayOfWeek;
-    const diffToMonday = currentDayOfWeek - 1;
-    const monday = today.subtract({ days: diffToMonday });
+    let current = startDate;
+    while (Temporal.PlainDate.compare(current, endDate) <= 0) {
+      const dayOfWeek = current.dayOfWeek;
+      const dayName = days[dayOfWeek - 1];
+      pairs.push({ day: dayName, date: current.toString() });
+      current = current.add({ days: 1 });
+    }
 
-    days.forEach((day, index) => {
-      map[day] = monday.add({ days: index }).toString();
-    });
-
-    return map;
+    return pairs;
   }, [today]);
 
   const events = useMemo(() => {
-    return courses
-      .map((course, index) => {
-        const dateStr = dayMap[course.day.trim()];
-        if (!dateStr) return null;
+    const allEvents: typeof events = [];
+
+    courses.forEach((course, courseIndex) => {
+      const courseDayTrimmed = course.day.trim();
+      dayDatePairs.forEach((pair) => {
+        if (pair.day !== courseDayTrimmed) return;
 
         try {
           const [timePart, period] = course.time.split(" ");
@@ -168,13 +170,13 @@ const CalendarView = ({
 
           const startTimeStr = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00`;
           const start = Temporal.ZonedDateTime.from(
-            `${dateStr}T${startTimeStr}[UTC]`,
+            `${pair.date}T${startTimeStr}[UTC]`,
           );
           const end = start.add({ hours: 1 });
           const isPast = Temporal.ZonedDateTime.compare(start, now) < 0;
 
-          return {
-            id: String(course.id),
+          allEvents.push({
+            id: `${String(course.id)}-${pair.date}`,
             title: course.title,
             instructor: course.instructor,
             spots: course.spots,
@@ -184,15 +186,17 @@ const CalendarView = ({
             end,
             calendarId: course.type.toLowerCase(),
             _isPast: isPast,
-            _style: COLOR_STYLES[index % COLOR_STYLES.length],
+            _style: COLOR_STYLES[courseIndex % COLOR_STYLES.length],
             _enrolled: enrolledCourseIds.includes(course.id),
-          };
+          });
         } catch {
-          return null;
+          // Ignore parse errors
         }
-      })
-      .filter((event) => event !== null);
-  }, [courses, dayMap, now, enrolledCourseIds]);
+      });
+    });
+
+    return allEvents;
+  }, [courses, dayDatePairs, now, enrolledCourseIds]);
 
   const calendarApp = useCalendarApp(
     {
@@ -222,12 +226,25 @@ const CalendarView = ({
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden sx-react-calendar-wrapper">
       <style>{`
-        .sx-react-calendar-wrapper { height: 750px; }
+        .sx-react-calendar-wrapper { 
+          height: 500px;
+          z-index: 10;
+          position: relative;
+        }
         .sx__calendar { 
           --sx-color-primary: #6366f1; 
           --sx-border-radius-large: 1rem; 
           font-family: inherit; 
           border: none !important;
+          z-index: 10 !important;
+        }
+        .sx__calendar-header,
+        .sx__calendar-header-nav,
+        .sx__day-selector,
+        .sx__week-day-header,
+        .sx__header {
+          z-index: 10 !important;
+          position: relative;
         }
         
         .sx__event-time, 
@@ -360,6 +377,6 @@ const CalendarView = ({
       />
     </div>
   );
-};
+};;
 
 export default CalendarView;
