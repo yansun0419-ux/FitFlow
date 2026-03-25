@@ -1,6 +1,8 @@
 # Sprint 2 Report: FitFlow Team
+<a id="top"></a>
+
 <!-- Content tabs / quick links -->
-**Jump to:** [Part 1](#1-detail-work-completed-in-sprint-2) | [Part 2](#2-frontend-testing-summary) | [Part 3](#3-backend-testing-summary) | [Part 4](#4-api-documentation)
+**Jump to:** [Detailed Work](#1-detail-work-completed-in-sprint-2) | [Frontend Testing](#2-frontend-testing-summary) | [Backend Testing](#3-backend-testing-summary) | [API Doc](#4-api-documentation) | [Summary](#5-summary)
 
 ---
 ---
@@ -410,6 +412,7 @@
 
 - Remaining spots displayed for each class in the course listing UI
 
+<a href="#top">⬆️</a>
 ---
 
 ## 2) Frontend Testing Summary
@@ -504,6 +507,7 @@
 - Command: `npm test`
 - Build & Lint: ✓ Green
 
+<a href="#top">⬆️</a>
 ---
 
 ## 3) Backend Testing Summary
@@ -564,6 +568,7 @@ go test ./service -v -count=1 -run TestGetUserAnalytics
 
 **Execution Result**: All 21 tests passing
 
+<a href="#top">⬆️</a>
 ---
 
 ## 4) API Documentation
@@ -714,9 +719,10 @@ Authorization uses `Authorization: Bearer <JWT>` and reads `id` and `role_id` fr
 
 **Errors**: 401 (token), 403 (forbidden), 400 (id), 404 (not found), 500 (server)
 
+<a href="#top">⬆️</a>
 ---
 
-## Summary
+## 5) Summary
 
 ### Sprint 2 Objectives Completed
 
@@ -770,6 +776,6 @@ go test ./service -v -count=1   # Service tests only
 ```
 
 ---
-
+<a href="#top">⬆️</a>
 **Last Updated**: Sprint 2, March 25, 2026
 **Team**: Frontend (Forrest Yan Sun, Ila Adhikari) + Backend (Qing Li, Yingzhu Chen)
