@@ -1,7 +1,13 @@
 # Sprint 2 Report: FitFlow Team
+<!-- Content tabs / quick links -->
+**Jump to:** [Part 1](#1-detail-work-completed-in-sprint-2) | [Part 2](#2-frontend-testing-summary) | [Part 3](#3-backend-testing-summary) | [Part 4](#4-api-documentation)
 
 ---
-
+---
+## 1) Detail Work Completed in Sprint 2
+## 2) Frontend Testing Summary
+## 3) Backend Testing Summary
+## 4) API Documentation
 ## 1) Detail Work Completed in Sprint 2
 
 ### 1.1 User Stories & Features
