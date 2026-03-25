@@ -247,7 +247,7 @@ const CalendarView = ({
         .sx__day-selector,
         .sx__week-day-header,
         .sx__header {
-          z-index: 10 !important;
+          z-index: auto;
           position: relative;
         }
         
