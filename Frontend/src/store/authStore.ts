@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-type Role = "student" | "manager";
+export type Role = "student" | "manager" | "supermanager";
 
 type AuthStore = {
   isAuthenticated: boolean;
@@ -13,14 +13,20 @@ type AuthStore = {
 
 const getInitialState = () => {
   const token = localStorage.getItem("auth_token");
-  const role = localStorage.getItem("user_role") as Role;
+  const savedRole = localStorage.getItem("user_role");
+  const role: Role | null =
+    savedRole === "student" ||
+    savedRole === "manager" ||
+    savedRole === "supermanager"
+      ? savedRole
+      : null;
   const rawUserId = localStorage.getItem("user_id");
   const userId = rawUserId ? Number(rawUserId) : null;
   return {
     isAuthenticated: !!token,
     token,
     userId: Number.isFinite(userId) ? userId : null,
-    role: role || null,
+    role,
   };
 };
 

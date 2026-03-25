@@ -6,9 +6,17 @@ interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   children: React.ReactNode;
+  panelClassName?: string;
 }
 
-const Modal = ({ isOpen, onClose, children }: ModalProps) => {
+const Modal = ({
+  isOpen,
+  onClose,
+  children,
+  panelClassName = "",
+}: ModalProps) => {
+  const widthClass = panelClassName || "max-w-md";
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -30,7 +38,9 @@ const Modal = ({ isOpen, onClose, children }: ModalProps) => {
   return (
     <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="fixed inset-0 cursor-pointer" onClick={onClose} />
-      <Card className="max-w-md w-full p-0 overflow-hidden relative z-10 animate-in zoom-in-95 duration-200 shadow-2xl ring-1 ring-slate-200/50">
+      <Card
+        className={`${widthClass} w-full p-0 overflow-hidden relative z-10 animate-in zoom-in-95 duration-200 shadow-2xl ring-1 ring-slate-200/50`}
+      >
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors z-20 bg-white/80 backdrop-blur"

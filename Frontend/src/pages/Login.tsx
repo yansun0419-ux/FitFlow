@@ -24,7 +24,9 @@ const Login = () => {
   });
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {},
+  );
 
   const validateForm = () => {
     const nextErrors: { email?: string; password?: string } = {};
@@ -87,7 +89,7 @@ const Login = () => {
             <span className="text-3xl">💪</span>
           </div>
           <h1 className="text-3xl font-bold text-slate-800 mb-2">FitFlow</h1>
-          <p className="text-slate-500">Let's get moving.</p>
+          <p className="text-slate-500 mb-6">Let's get moving.</p>
         </div>
 
         <div className="space-y-4">

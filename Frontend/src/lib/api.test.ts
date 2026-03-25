@@ -8,7 +8,7 @@ const toBase64Url = (value: string) => {
 describe("api helpers", () => {
   it("maps backend role id to frontend role", () => {
     expect(roleIdToFrontendRole(1)).toBe("student");
-    expect(roleIdToFrontendRole(2)).toBe("manager");
+    expect(roleIdToFrontendRole(2)).toBe("supermanager");
     expect(roleIdToFrontendRole(3)).toBe("manager");
     expect(roleIdToFrontendRole(999)).toBe("student");
   });

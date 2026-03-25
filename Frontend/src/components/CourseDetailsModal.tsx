@@ -5,11 +5,16 @@ import { Icons } from "../lib/icons";
 export type CourseCardItem = {
   id: number;
   title: string;
+  code?: string;
+  description?: string;
   instructor: string;
   time: string;
+  startTimeRaw?: string;
+  endTimeRaw?: string;
   day: string;
   spots: number;
   capacity: number;
+  duration?: number;
   type: string;
   image: string;
 };

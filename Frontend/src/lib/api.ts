@@ -47,7 +47,7 @@ async function getJson<TResponse>(path: string): Promise<TResponse> {
 
 async function authRequest<TResponse>(
   path: string,
-  method: "GET" | "PUT" | "POST",
+  method: "GET" | "PUT" | "POST" | "DELETE",
   token: string,
   body?: unknown,
 ): Promise<TResponse> {
@@ -76,8 +76,11 @@ export type LoginResponse = {
 export const loginRequest = (email: string, password: string) =>
   postJson<LoginResponse>("/auth/login", { email, password });
 
-export const registerStudentRequest = (name: string, email: string, password: string) =>
-  postJson<{ message: string }>("/auth/register", { name, email, password });
+export const registerStudentRequest = (
+  name: string,
+  email: string,
+  password: string,
+) => postJson<{ message: string }>("/auth/register", { name, email, password });
 
 export const registerManagerRequest = (
   name: string,
@@ -92,9 +95,13 @@ export const registerManagerRequest = (
     invite_code: inviteCode,
   });
 
-export const roleIdToFrontendRole = (roleId: number): "student" | "manager" => {
-  // Treat manager and super manager as manager in current frontend role model.
-  if (roleId === 2 || roleId === 3) {
+export const roleIdToFrontendRole = (
+  roleId: number,
+): "student" | "manager" | "supermanager" => {
+  if (roleId === 2) {
+    return "supermanager";
+  }
+  if (roleId === 3) {
     return "manager";
   }
   return "student";
@@ -108,8 +115,11 @@ export const extractUserIdFromToken = (token: string): number | null => {
     }
 
     const payloadBase64Url = parts[1];
-    const payloadBase64 = payloadBase64Url.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = payloadBase64 + "=".repeat((4 - (payloadBase64.length % 4)) % 4);
+    const payloadBase64 = payloadBase64Url
+      .replace(/-/g, "+")
+      .replace(/_/g, "/");
+    const padded =
+      payloadBase64 + "=".repeat((4 - (payloadBase64.length % 4)) % 4);
     const decoded = atob(padded);
     const payload = JSON.parse(decoded) as { id?: number };
 
@@ -129,11 +139,44 @@ export type UserProfile = {
   address: string;
 };
 
+export type UpdateUserProfilePayload = {
+  name?: string;
+  email?: string;
+  avatar_url?: string | null;
+  date_of_birth?: string | null;
+  phone_number?: string | null;
+  address?: string | null;
+  gender?: string | null;
+};
+
 export const getProfileRequest = (token: string) =>
   authRequest<UserProfile>("/auth/profile", "GET", token);
 
-export const updateProfileRequest = (token: string, profile: UserProfile) =>
-  authRequest<{ message: string }>("/auth/profile", "PUT", token, profile);
+export const updateProfileRequest = (
+  token: string,
+  profile: UpdateUserProfilePayload,
+) => authRequest<{ message: string }>("/auth/profile", "PUT", token, profile);
+
+export type CreateManagerInviteCodeRequest = {
+  expire_hours: number;
+  invitee_email?: string;
+};
+
+export type CreateManagerInviteCodeResponse = {
+  message: string;
+  code: string;
+};
+
+export const createManagerInviteCodeRequest = (
+  token: string,
+  payload: CreateManagerInviteCodeRequest,
+) =>
+  authRequest<CreateManagerInviteCodeResponse>(
+    "/auth/manager/invite-codes",
+    "POST",
+    token,
+    payload,
+  );
 
 export type BackendClass = {
   id: number;
@@ -179,6 +222,42 @@ export const getUserEnrollmentsRequest = (token: string, userId: number) =>
     "GET",
     token,
   );
+
+export type ClassUpsertRequest = {
+  name: string;
+  course_code: string;
+  description: string;
+  start_time: string;
+  end_time: string;
+  capacity: number;
+  duration: number;
+  category: string;
+  weekday: string;
+};
+
+export type ClassUpsertResponse = {
+  class: BackendClass;
+};
+
+export const createClassRequest = (
+  token: string,
+  payload: ClassUpsertRequest,
+) => authRequest<ClassUpsertResponse>("/classes", "POST", token, payload);
+
+export const updateClassRequest = (
+  token: string,
+  classId: number,
+  payload: ClassUpsertRequest,
+) =>
+  authRequest<ClassUpsertResponse>(
+    `/classes/${classId}`,
+    "PUT",
+    token,
+    payload,
+  );
+
+export const deleteClassRequest = (token: string, classId: number) =>
+  authRequest<{ message: string }>(`/classes/${classId}`, "DELETE", token);
 
 export type UserAnalyticsResponse = {
   analytics: {
