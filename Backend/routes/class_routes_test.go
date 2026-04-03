@@ -86,12 +86,17 @@ func seedRouteUser(t *testing.T, roleID uint, password string) model.User {
 
 func seedRouteCourse(t *testing.T, name string, capacity int, category string) model.Course {
 	t.Helper()
+	return seedRouteCourseWithSchedule(t, name, capacity, category, "09:00", "10:00", "Monday")
+}
 
-	startTime, err := model.ParseTimeOnly("09:00")
+func seedRouteCourseWithSchedule(t *testing.T, name string, capacity int, category string, start string, end string, weekday string) model.Course {
+	t.Helper()
+
+	startTime, err := model.ParseTimeOnly(start)
 	if err != nil {
 		t.Fatalf("failed to parse start time: %v", err)
 	}
-	endTime, err := model.ParseTimeOnly("10:00")
+	endTime, err := model.ParseTimeOnly(end)
 	if err != nil {
 		t.Fatalf("failed to parse end time: %v", err)
 	}
@@ -103,6 +108,7 @@ func seedRouteCourse(t *testing.T, name string, capacity int, category string) m
 		Category:   category,
 		StartTime:  startTime,
 		EndTime:    endTime,
+		Weekday:    weekday,
 	}
 	if err := db.DB.Create(&course).Error; err != nil {
 		t.Fatalf("failed to seed course: %v", err)
@@ -209,6 +215,32 @@ func TestRegisterClassEndpoint_Conflict(t *testing.T) {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 	if response.Error != "enrollment already exists" {
+		t.Fatalf("unexpected error: %s", response.Error)
+	}
+}
+
+func TestRegisterClassEndpoint_ConflictOnScheduleOverlap(t *testing.T) {
+	setupRouteTestDB(t)
+	seedRouteRole(t, 1, "Student")
+	user := seedRouteUser(t, 1, "secret123")
+	existingCourse := seedRouteCourseWithSchedule(t, "Morning Yoga", 3, "Wellness", "09:00", "10:00", "Monday")
+	targetCourse := seedRouteCourseWithSchedule(t, "Strength Flow", 3, "Strength", "09:30", "10:30", "Mon")
+	seedRouteEnrollmentAt(t, user.ID, existingCourse.ID, model.EnrollmentStatusEnrolled, time.Now())
+	token := issueRouteToken(t, user.Email, "secret123")
+	router := routes.SetupRouter()
+
+	recorder := performJSONRequest(t, router, http.MethodPost, "/classes/register", token, map[string]uint{"course_id": targetCourse.ID})
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("expected status 409, got %d with body %s", recorder.Code, recorder.Body.String())
+	}
+
+	var response struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if response.Error != "class schedule overlaps with an existing enrolled class" {
 		t.Fatalf("unexpected error: %s", response.Error)
 	}
 }

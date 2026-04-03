@@ -5,6 +5,7 @@ import (
 	"math"
 	"my-course-backend/dao"
 	"my-course-backend/model"
+	"strings"
 	"time"
 )
 
@@ -27,6 +28,14 @@ func RegisterClass(userID uint, courseID uint) error {
 		return errors.New("enrollment already exists")
 	}
 
+	hasOverlap, err := hasScheduleOverlap(userID, class)
+	if err != nil {
+		return err
+	}
+	if hasOverlap {
+		return errors.New("class schedule overlaps with an existing enrolled class")
+	}
+
 	count, err := dao.CountEnrollmentsByClass(courseID)
 	if err != nil {
 		return err
@@ -45,6 +54,66 @@ func RegisterClass(userID uint, courseID uint) error {
 	}
 
 	return dao.BackfillUserDailyActivityFromEnrollments(userID)
+}
+
+func hasScheduleOverlap(userID uint, targetClass *model.Course) (bool, error) {
+	enrolledCourses, err := dao.ListEnrolledCoursesByUser(userID)
+	if err != nil {
+		return false, err
+	}
+
+	for i := range enrolledCourses {
+		existing := &enrolledCourses[i]
+		if existing.ID == targetClass.ID {
+			continue
+		}
+
+		if !isSameWeekday(existing.Weekday, targetClass.Weekday) {
+			continue
+		}
+
+		if timeRangesOverlap(existing.StartTime, existing.EndTime, targetClass.StartTime, targetClass.EndTime) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func isSameWeekday(a string, b string) bool {
+	normalizedA := normalizeWeekday(a)
+	normalizedB := normalizeWeekday(b)
+
+	if normalizedA == "" || normalizedB == "" {
+		return true
+	}
+
+	return normalizedA == normalizedB
+}
+
+func normalizeWeekday(value string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(value))
+	if len(trimmed) <= 3 {
+		return trimmed
+	}
+	return trimmed[:3]
+}
+
+func timeRangesOverlap(startA, endA, startB, endB model.TimeOnly) bool {
+	if startA.Time.IsZero() || endA.Time.IsZero() || startB.Time.IsZero() || endB.Time.IsZero() {
+		return false
+	}
+
+	startAMin := toMinutes(startA)
+	endAMin := toMinutes(endA)
+	startBMin := toMinutes(startB)
+	endBMin := toMinutes(endB)
+
+	return startAMin < endBMin && startBMin < endAMin
+}
+
+func toMinutes(value model.TimeOnly) int {
+	return value.Hour()*60 + value.Minute()
 }
 
 // DropClass removes a user's enrollment from a course.

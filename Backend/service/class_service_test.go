@@ -79,6 +79,28 @@ func seedCourse(t *testing.T, name string, capacity int, category string) model.
 	return course
 }
 
+func setCourseSchedule(t *testing.T, courseID uint, weekday string, start string, end string) {
+	t.Helper()
+
+	startTime, err := model.ParseTimeOnly(start)
+	if err != nil {
+		t.Fatalf("failed to parse start time: %v", err)
+	}
+
+	endTime, err := model.ParseTimeOnly(end)
+	if err != nil {
+		t.Fatalf("failed to parse end time: %v", err)
+	}
+
+	if err := db.DB.Model(&model.Course{}).Where("id = ?", courseID).Updates(map[string]any{
+		"weekday":    weekday,
+		"start_time": startTime,
+		"end_time":   endTime,
+	}).Error; err != nil {
+		t.Fatalf("failed to set course schedule: %v", err)
+	}
+}
+
 func seedEnrollmentAt(t *testing.T, userID uint, courseID uint, status string, enrollTime time.Time) model.Enrollment {
 	t.Helper()
 
@@ -172,6 +194,24 @@ func TestRegisterClass_ClassFull(t *testing.T) {
 	err := RegisterClass(user2.ID, course.ID)
 	if err == nil || err.Error() != "class is full" {
 		t.Fatalf("expected class is full, got: %v", err)
+	}
+}
+
+func TestRegisterClass_ScheduleOverlap(t *testing.T) {
+	setupClassServiceTestDB(t)
+
+	user := seedRoleAndUser(t, 1)
+	existingCourse := seedCourse(t, "Morning Yoga", 5, "Wellness")
+	targetCourse := seedCourse(t, "Strength Flow", 5, "Strength")
+
+	setCourseSchedule(t, existingCourse.ID, "Monday", "09:00", "10:00")
+	setCourseSchedule(t, targetCourse.ID, "Mon", "09:30", "10:30")
+
+	seedEnrollmentAt(t, user.ID, existingCourse.ID, model.EnrollmentStatusEnrolled, time.Now())
+
+	err := RegisterClass(user.ID, targetCourse.ID)
+	if err == nil || err.Error() != "class schedule overlaps with an existing enrolled class" {
+		t.Fatalf("expected schedule overlap error, got: %v", err)
 	}
 }
 
