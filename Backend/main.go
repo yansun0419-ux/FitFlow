@@ -2,7 +2,7 @@ package main
 
 import (
 	"log"
-
+	"os"
 	"my-course-backend/db"
 	"my-course-backend/model"
 	"my-course-backend/routes"
@@ -41,7 +41,18 @@ func main() {
 	r := routes.SetupRouter()
 
 	// 5. Start Server
-	r.Run(":8080")
+ 	// 获取 Render 注入的 PORT 环境变量
+	port := os.Getenv("PORT")
+	if port == "" {
+	port = "8080" // 如果本地没有设置 PORT，则使用 8080
+	}
+	
+	log.Printf("Server is running on port %s", port)
+	
+	// 修改这里，不要写死 :8080
+	if err := r.Run(":" + port); err != nil {
+	log.Fatalf("Failed to start server: %v", err)
+	}
 }
 
 func seedRoles() {
