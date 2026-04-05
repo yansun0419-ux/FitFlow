@@ -63,7 +63,12 @@ const Login = () => {
 
       login(data.token, frontendRole, userId);
       toast.success("Welcome back! Successfully logged in.");
-      navigate("/");
+      
+      if (frontendRole === "instructor") {
+        navigate("/instructor/dashboard");
+      } else {
+        navigate("/");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed";
       toast.error(message);
