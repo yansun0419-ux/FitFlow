@@ -118,7 +118,7 @@ func ListEnrolledCoursesByUser(userID uint) ([]model.Course, error) {
 	var courses []model.Course
 	if err := db.DB.Joins("INNER JOIN Enrollment ON Enrollment.course_id = Course.id").
 		Joins("INNER JOIN User ON User.id = Enrollment.user_id").
-		Where("User.id = ?", userID).
+		Where("User.id = ? AND Enrollment.status = ?", userID, model.EnrollmentStatusEnrolled).
 		Order("Course.start_time ASC").
 		Find(&courses).Error; err != nil {
 		return nil, err
@@ -153,6 +153,7 @@ func BackfillUserDailyActivityFromEnrollments(userID uint) error {
 		SELECT e.id, e.user_id, e.course_id, DATE(e.enroll_time), CURRENT_TIMESTAMP
 		FROM Enrollment e
 		WHERE e.user_id = ?
+		  AND e.status = ?
 		AND NOT EXISTS (
 			SELECT 1
 			FROM UserDailyActivity uda
@@ -161,7 +162,7 @@ func BackfillUserDailyActivityFromEnrollments(userID uint) error {
 		)
 	`
 
-	return db.DB.Exec(query, userID).Error
+	return db.DB.Exec(query, userID, model.EnrollmentStatusAttended).Error
 }
 
 // GetUserActivityStats returns total activity stats in a date range.
@@ -173,8 +174,9 @@ func GetUserActivityStats(userID uint, fromDate time.Time, toDate time.Time) (in
 
 	var result statsResult
 	err := db.DB.Model(&model.UserDailyActivity{}).
+		Joins("INNER JOIN Enrollment e ON e.id = UserDailyActivity.enrollment_id").
 		Select("COUNT(*) as total_classes, COUNT(DISTINCT activity_date) as active_days").
-		Where("user_id = ? AND activity_date BETWEEN ? AND ?", userID, fromDate.Format("2006-01-02"), toDate.Format("2006-01-02")).
+		Where("UserDailyActivity.user_id = ? AND UserDailyActivity.activity_date BETWEEN ? AND ? AND e.status = ?", userID, fromDate.Format("2006-01-02"), toDate.Format("2006-01-02"), model.EnrollmentStatusAttended).
 		Scan(&result).Error
 	if err != nil {
 		return 0, 0, err
@@ -192,8 +194,9 @@ func GetUserTotalTime(userID uint, fromDate time.Time, toDate time.Time) (int64,
 	var result totalTimeResult
 	err := db.DB.Table("UserDailyActivity AS uda").
 		Select("COALESCE(SUM(COALESCE(c.duration, 0)), 0) AS total_time").
+		Joins("INNER JOIN Enrollment e ON e.id = uda.enrollment_id").
 		Joins("INNER JOIN Course c ON c.id = uda.course_id").
-		Where("uda.user_id = ? AND uda.activity_date BETWEEN ? AND ?", userID, fromDate.Format("2006-01-02"), toDate.Format("2006-01-02")).
+		Where("uda.user_id = ? AND uda.activity_date BETWEEN ? AND ? AND e.status = ?", userID, fromDate.Format("2006-01-02"), toDate.Format("2006-01-02"), model.EnrollmentStatusAttended).
 		Scan(&result).Error
 	if err != nil {
 		return 0, err
@@ -207,9 +210,10 @@ func GetUserDailyActivitySummary(userID uint, fromDate time.Time, toDate time.Ti
 	var daily []model.DailyActivitySummary
 
 	err := db.DB.Table("UserDailyActivity AS uda").
+		Joins("INNER JOIN Enrollment e ON e.id = uda.enrollment_id").
 		Select(`DATE(uda.activity_date) AS date,
 			COUNT(*) AS classes`).
-		Where("uda.user_id = ? AND uda.activity_date BETWEEN ? AND ?", userID, fromDate.Format("2006-01-02"), toDate.Format("2006-01-02")).
+		Where("uda.user_id = ? AND uda.activity_date BETWEEN ? AND ? AND e.status = ?", userID, fromDate.Format("2006-01-02"), toDate.Format("2006-01-02"), model.EnrollmentStatusAttended).
 		Group("DATE(uda.activity_date)").
 		Order("DATE(uda.activity_date) ASC").
 		Scan(&daily).Error
@@ -227,8 +231,9 @@ func GetUserCategoryActivitySummary(userID uint, fromDate time.Time, toDate time
 	err := db.DB.Table("UserDailyActivity AS uda").
 		Select(`COALESCE(NULLIF(TRIM(c.category), ''), 'Uncategorized') AS category,
 			COUNT(*) AS classes`).
+		Joins("INNER JOIN Enrollment e ON e.id = uda.enrollment_id").
 		Joins("INNER JOIN Course c ON c.id = uda.course_id").
-		Where("uda.user_id = ? AND uda.activity_date BETWEEN ? AND ?", userID, fromDate.Format("2006-01-02"), toDate.Format("2006-01-02")).
+		Where("uda.user_id = ? AND uda.activity_date BETWEEN ? AND ? AND e.status = ?", userID, fromDate.Format("2006-01-02"), toDate.Format("2006-01-02"), model.EnrollmentStatusAttended).
 		Group("COALESCE(NULLIF(TRIM(c.category), ''), 'Uncategorized')").
 		Order("classes DESC, category ASC").
 		Scan(&categories).Error
@@ -237,4 +242,59 @@ func GetUserCategoryActivitySummary(userID uint, fromDate time.Time, toDate time
 	}
 
 	return categories, nil
+}
+
+// CheckEnrollmentExistsBySession checks if a user is already enrolled in a specific session.
+func CheckEnrollmentExistsBySession(userID uint, sessionID uint) (bool, error) {
+	var count int64
+	if err := db.DB.Model(&model.Enrollment{}).
+		Where("user_id = ? AND session_id = ?", userID, sessionID).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// CountEnrollmentsBySession returns the number of enrollments for a specific session.
+func CountEnrollmentsBySession(sessionID uint) (int64, error) {
+	var count int64
+	if err := db.DB.Model(&model.Enrollment{}).
+		Where("session_id = ?", sessionID).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// ListEnrolledSessionsByUserOnDate returns all enrolled ClassSession records for a user on a specific date,
+// excluding sessions from the same course (allows same course at different times).
+func ListEnrolledSessionsByUserOnDate(userID uint, sessionDate string, excludeCourseID uint) ([]model.ClassSession, error) {
+	var sessions []model.ClassSession
+	if err := db.DB.Joins("INNER JOIN Enrollment ON Enrollment.session_id = ClassSession.id").
+		Where("Enrollment.user_id = ? AND ClassSession.session_date = ? AND Enrollment.status = ? AND ClassSession.course_id != ?", userID, sessionDate, model.EnrollmentStatusEnrolled, excludeCourseID).
+		Find(&sessions).Error; err != nil {
+		return nil, err
+	}
+	return sessions, nil
+}
+
+// DeleteEnrollmentBySession removes a user's enrollment from a specific session.
+func DeleteEnrollmentBySession(userID uint, sessionID uint) error {
+	return db.DB.Transaction(func(tx *gorm.DB) error {
+		result := tx.Where("user_id = ? AND session_id = ?", userID, sessionID).
+			Delete(&model.Enrollment{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return errors.New("enrollment not found")
+		}
+
+		if err := tx.Where("user_id = ? AND session_id = ?", userID, sessionID).
+			Delete(&model.UserDailyActivity{}).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
 }

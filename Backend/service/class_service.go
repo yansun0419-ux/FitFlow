@@ -20,6 +20,10 @@ func RegisterClass(userID uint, courseID uint) error {
 		return errors.New("class not found")
 	}
 
+	if err := validateEnrollmentWindow(class, time.Now()); err != nil {
+		return err
+	}
+
 	exists, err := dao.CheckEnrollmentExists(userID, courseID)
 	if err != nil {
 		return err
@@ -97,6 +101,50 @@ func normalizeWeekday(value string) string {
 		return trimmed
 	}
 	return trimmed[:3]
+}
+
+// validateEnrollmentWindow enforces that enrollment opens 25 hours before the next class start.
+func validateEnrollmentWindow(class *model.Course, now time.Time) error {
+	if class == nil || class.StartTime.Time.IsZero() {
+		return errors.New("invalid class schedule")
+	}
+
+	weekdayMap := map[string]time.Weekday{
+		"sun": time.Sunday,
+		"mon": time.Monday,
+		"tue": time.Tuesday,
+		"wed": time.Wednesday,
+		"thu": time.Thursday,
+		"fri": time.Friday,
+		"sat": time.Saturday,
+	}
+
+	targetWeekday, ok := weekdayMap[normalizeWeekday(class.Weekday)]
+	if !ok {
+		return errors.New("invalid class schedule")
+	}
+
+	loc := now.Location()
+	nextStart := time.Date(now.Year(), now.Month(), now.Day(), class.StartTime.Hour(), class.StartTime.Minute(), 0, 0, loc)
+
+	daysAhead := (int(targetWeekday) - int(now.Weekday()) + 7) % 7
+	nextStart = nextStart.AddDate(0, 0, daysAhead)
+
+	// If today's class already started, use next week's occurrence.
+	if daysAhead == 0 && now.After(nextStart) {
+		nextStart = nextStart.AddDate(0, 0, 7)
+	}
+
+	if now.After(nextStart) {
+		return errors.New("registration closed: class has already started")
+	}
+
+	enrollmentOpen := nextStart.Add(-25 * time.Hour)
+	if now.Before(enrollmentOpen) {
+		return errors.New("registration not yet open: enrollment opens 25 hours before class start")
+	}
+
+	return nil
 }
 
 func timeRangesOverlap(startA, endA, startB, endB model.TimeOnly) bool {

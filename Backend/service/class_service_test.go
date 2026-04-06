@@ -66,11 +66,27 @@ func seedRoleAndUser(t *testing.T, roleID uint) model.User {
 func seedCourse(t *testing.T, name string, capacity int, category string) model.Course {
 	t.Helper()
 
+	now := time.Now()
+	start := now.Add(2 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	startTime, err := model.ParseTimeOnly(start.Format("15:04"))
+	if err != nil {
+		t.Fatalf("failed to parse start time: %v", err)
+	}
+	endTime, err := model.ParseTimeOnly(end.Format("15:04"))
+	if err != nil {
+		t.Fatalf("failed to parse end time: %v", err)
+	}
+
 	course := model.Course{
 		CourseName: name,
 		CourseCode: fmt.Sprintf("C-%d-%d", time.Now().UnixNano(), atomic.AddUint64(&testSeq, 1)),
 		Capacity:   capacity,
 		Category:   category,
+		Weekday:    start.Weekday().String(),
+		StartTime:  startTime,
+		EndTime:    endTime,
 	}
 	if err := db.DB.Create(&course).Error; err != nil {
 		t.Fatalf("failed to seed course: %v", err)
@@ -143,8 +159,8 @@ func TestRegisterClass_Success(t *testing.T) {
 		Count(&activities).Error; err != nil {
 		t.Fatalf("failed to verify daily activity: %v", err)
 	}
-	if activities != 1 {
-		t.Fatalf("expected 1 daily activity row, got %d", activities)
+	if activities != 0 {
+		t.Fatalf("expected 0 daily activity rows for enrolled status, got %d", activities)
 	}
 }
 
@@ -204,8 +220,10 @@ func TestRegisterClass_ScheduleOverlap(t *testing.T) {
 	existingCourse := seedCourse(t, "Morning Yoga", 5, "Wellness")
 	targetCourse := seedCourse(t, "Strength Flow", 5, "Strength")
 
-	setCourseSchedule(t, existingCourse.ID, "Monday", "09:00", "10:00")
-	setCourseSchedule(t, targetCourse.ID, "Mon", "09:30", "10:30")
+	base := time.Now().Add(2 * time.Hour)
+	weekday := base.Weekday().String()
+	setCourseSchedule(t, existingCourse.ID, weekday, base.Format("15:04"), base.Add(1*time.Hour).Format("15:04"))
+	setCourseSchedule(t, targetCourse.ID, weekday[:3], base.Add(30*time.Minute).Format("15:04"), base.Add(90*time.Minute).Format("15:04"))
 
 	seedEnrollmentAt(t, user.ID, existingCourse.ID, model.EnrollmentStatusEnrolled, time.Now())
 
@@ -318,20 +336,20 @@ func TestGetUserAnalytics_SuccessWithPercentages(t *testing.T) {
 		t.Fatalf("expected success, got error: %v", err)
 	}
 
-	if analytics.TotalClasses != 3 {
-		t.Fatalf("expected total classes 3, got %d", analytics.TotalClasses)
+	if analytics.TotalClasses != 2 {
+		t.Fatalf("expected total classes 2, got %d", analytics.TotalClasses)
 	}
-	if analytics.TotalTime != 135 {
-		t.Fatalf("expected total time 135, got %d", analytics.TotalTime)
+	if analytics.TotalTime != 105 {
+		t.Fatalf("expected total time 105, got %d", analytics.TotalTime)
 	}
-	if analytics.ActiveDays != 3 {
-		t.Fatalf("expected active days 3, got %d", analytics.ActiveDays)
+	if analytics.ActiveDays != 2 {
+		t.Fatalf("expected active days 2, got %d", analytics.ActiveDays)
 	}
 	if analytics.Range != "7d" {
 		t.Fatalf("expected range 7d, got %s", analytics.Range)
 	}
-	if len(analytics.Categories) != 2 {
-		t.Fatalf("expected 2 categories, got %d", len(analytics.Categories))
+	if len(analytics.Categories) != 1 {
+		t.Fatalf("expected 1 category, got %d", len(analytics.Categories))
 	}
 
 	categoryPct := map[string]float64{}
@@ -344,17 +362,11 @@ func TestGetUserAnalytics_SuccessWithPercentages(t *testing.T) {
 	if categoryClasses["Cardio"] != 2 {
 		t.Fatalf("expected Cardio classes 2, got %d", categoryClasses["Cardio"])
 	}
-	if categoryPct["Cardio"] != 66.67 {
-		t.Fatalf("expected Cardio percentage 66.67, got %.2f", categoryPct["Cardio"])
+	if categoryPct["Cardio"] != 100 {
+		t.Fatalf("expected Cardio percentage 100, got %.2f", categoryPct["Cardio"])
 	}
-	if categoryClasses["Uncategorized"] != 1 {
-		t.Fatalf("expected Uncategorized classes 1, got %d", categoryClasses["Uncategorized"])
-	}
-	if categoryPct["Uncategorized"] != 33.33 {
-		t.Fatalf("expected Uncategorized percentage 33.33, got %.2f", categoryPct["Uncategorized"])
-	}
-	if len(analytics.Daily) != 3 {
-		t.Fatalf("expected 3 daily summary rows, got %d", len(analytics.Daily))
+	if len(analytics.Daily) != 2 {
+		t.Fatalf("expected 2 daily summary rows, got %d", len(analytics.Daily))
 	}
 }
 

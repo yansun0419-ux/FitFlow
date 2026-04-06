@@ -365,3 +365,111 @@ func ensureAnalyticsCoverageEnrollments(courses []model.Course) error {
 	log.Printf("Enrollment analytics coverage: ensured %d rows for student_id=%d (created=%d, updated=%d)", limit, student.ID, created, updated)
 	return nil
 }
+
+// seedClassSessions generates ClassSession rows for all existing courses for 12 weeks ahead.
+func seedClassSessions() {
+	var courses []model.Course
+	if err := db.DB.Find(&courses).Error; err != nil {
+		log.Printf("Skip ClassSession seed: failed to load courses (%v)", err)
+		return
+	}
+
+	if len(courses) == 0 {
+		log.Printf("Skip ClassSession seed: no courses found")
+		return
+	}
+
+	// Check if sessions already exist
+	var existingCount int64
+	if err := db.DB.Model(&model.ClassSession{}).Count(&existingCount).Error; err != nil {
+		log.Printf("Skip ClassSession seed: failed to count existing sessions (%v)", err)
+		return
+	}
+
+	if existingCount > 0 {
+		log.Printf("ClassSession seed skipped: already has %d sessions", existingCount)
+		return
+	}
+
+	// Generate sessions for each course
+	today := time.Now().UTC()
+	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
+
+	created := 0
+	for _, course := range courses {
+		if course.Weekday == "" {
+			continue
+		}
+
+		// Find first occurrence of the target weekday
+		targetWeekday := normalizeWeekdayForSeed(course.Weekday)
+		firstSessionDate := getNextWeekday(today, targetWeekday)
+
+		// Generate 12 weeks of sessions
+		for week := 0; week < 12; week++ {
+			sessionDate := firstSessionDate.AddDate(0, 0, week*7)
+			startAt := combineDateTimeForSeed(sessionDate, course.StartTime)
+			endAt := combineDateTimeForSeed(sessionDate, course.EndTime)
+
+			session := &model.ClassSession{
+				CourseID:    course.ID,
+				SessionDate: sessionDate.Format("2006-01-02"),
+				StartAt:     startAt,
+				EndAt:       endAt,
+				Status:      "scheduled",
+				Capacity:    course.Capacity,
+			}
+
+			if err := db.DB.Create(session).Error; err != nil {
+				log.Printf("ClassSession seed warning: failed to create session for course %d (%v)", course.ID, err)
+				continue
+			}
+			created++
+		}
+	}
+
+	log.Printf("Seeded ClassSession: created %d sessions", created)
+}
+
+func normalizeWeekdayForSeed(weekday string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(weekday))
+	if len(trimmed) <= 3 {
+		return trimmed
+	}
+	return trimmed[:3]
+}
+
+func getNextWeekday(fromDate time.Time, targetWeekday string) time.Time {
+	weekdayMap := map[string]string{
+		"mon": "Monday",
+		"tue": "Tuesday",
+		"wed": "Wednesday",
+		"thu": "Thursday",
+		"fri": "Friday",
+		"sat": "Saturday",
+		"sun": "Sunday",
+	}
+
+	targetDayName, ok := weekdayMap[targetWeekday]
+	if !ok {
+		return fromDate
+	}
+
+	current := fromDate
+	for i := 0; i < 7; i++ {
+		if current.Weekday().String() == targetDayName {
+			return current
+		}
+		current = current.AddDate(0, 0, 1)
+	}
+
+	return fromDate
+}
+
+func combineDateTimeForSeed(date time.Time, timeOnly model.TimeOnly) time.Time {
+	if timeOnly.Time.IsZero() {
+		return date
+	}
+	hour, minute, second := timeOnly.Time.Clock()
+	return time.Date(date.Year(), date.Month(), date.Day(), hour, minute, second, 0, date.Location())
+}

@@ -86,7 +86,9 @@ func seedRouteUser(t *testing.T, roleID uint, password string) model.User {
 
 func seedRouteCourse(t *testing.T, name string, capacity int, category string) model.Course {
 	t.Helper()
-	return seedRouteCourseWithSchedule(t, name, capacity, category, "09:00", "10:00", "Monday")
+	start := time.Now().Add(2 * time.Hour)
+	end := start.Add(1 * time.Hour)
+	return seedRouteCourseWithSchedule(t, name, capacity, category, start.Format("15:04"), end.Format("15:04"), start.Weekday().String())
 }
 
 func seedRouteCourseWithSchedule(t *testing.T, name string, capacity int, category string, start string, end string, weekday string) model.Course {
@@ -223,8 +225,10 @@ func TestRegisterClassEndpoint_ConflictOnScheduleOverlap(t *testing.T) {
 	setupRouteTestDB(t)
 	seedRouteRole(t, 1, "Student")
 	user := seedRouteUser(t, 1, "secret123")
-	existingCourse := seedRouteCourseWithSchedule(t, "Morning Yoga", 3, "Wellness", "09:00", "10:00", "Monday")
-	targetCourse := seedRouteCourseWithSchedule(t, "Strength Flow", 3, "Strength", "09:30", "10:30", "Mon")
+	base := time.Now().Add(2 * time.Hour)
+	weekday := base.Weekday().String()
+	existingCourse := seedRouteCourseWithSchedule(t, "Morning Yoga", 3, "Wellness", base.Format("15:04"), base.Add(1*time.Hour).Format("15:04"), weekday)
+	targetCourse := seedRouteCourseWithSchedule(t, "Strength Flow", 3, "Strength", base.Add(30*time.Minute).Format("15:04"), base.Add(90*time.Minute).Format("15:04"), weekday[:3])
 	seedRouteEnrollmentAt(t, user.ID, existingCourse.ID, model.EnrollmentStatusEnrolled, time.Now())
 	token := issueRouteToken(t, user.Email, "secret123")
 	router := routes.SetupRouter()
@@ -378,20 +382,20 @@ func TestGetUserAnalyticsEndpoint_OK(t *testing.T) {
 	if response.Analytics.UserID != user.ID {
 		t.Fatalf("expected user id %d, got %d", user.ID, response.Analytics.UserID)
 	}
-	if response.Analytics.TotalClasses != 2 {
-		t.Fatalf("expected total classes 2, got %d", response.Analytics.TotalClasses)
+	if response.Analytics.TotalClasses != 1 {
+		t.Fatalf("expected total classes 1, got %d", response.Analytics.TotalClasses)
 	}
-	if response.Analytics.TotalTime != 75 {
-		t.Fatalf("expected total time 75, got %d", response.Analytics.TotalTime)
+	if response.Analytics.TotalTime != 45 {
+		t.Fatalf("expected total time 45, got %d", response.Analytics.TotalTime)
 	}
-	if response.Analytics.ActiveDays != 2 {
-		t.Fatalf("expected active days 2, got %d", response.Analytics.ActiveDays)
+	if response.Analytics.ActiveDays != 1 {
+		t.Fatalf("expected active days 1, got %d", response.Analytics.ActiveDays)
 	}
 	if response.Analytics.Range != "7d" {
 		t.Fatalf("expected range 7d, got %s", response.Analytics.Range)
 	}
-	if len(response.Analytics.Categories) != 2 {
-		t.Fatalf("expected 2 categories, got %d", len(response.Analytics.Categories))
+	if len(response.Analytics.Categories) != 1 {
+		t.Fatalf("expected 1 category, got %d", len(response.Analytics.Categories))
 	}
 }
 

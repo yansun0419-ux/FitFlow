@@ -7,6 +7,8 @@ import (
 	"runtime"
 	"strings"
 
+	"my-course-backend/model"
+
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
@@ -25,6 +27,7 @@ func InitDB() {
 	migrateUserInfoTable()
 	migrateEnrollmentTable()
 	ensureUserDailyActivityTable()
+	ensureClassSessionTable()
 	// Normalize TIME values to HH:MM:SS for consistent scanning.
 	if DB.Migrator().HasTable("Course") {
 		DB.Exec("UPDATE Course SET start_time = start_time || ':00' WHERE start_time IS NOT NULL AND length(start_time) = 5;")
@@ -163,5 +166,41 @@ func ensureUserDailyActivityTable() {
 
 	if err := DB.Exec(query).Error; err != nil {
 		log.Printf("Failed to ensure UserDailyActivity table exists: %v", err)
+	}
+}
+
+func ensureClassSessionTable() {
+	if DB == nil {
+		return
+	}
+
+	query := `
+		CREATE TABLE IF NOT EXISTS "ClassSession" (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			course_id INTEGER NOT NULL,
+			session_date DATE NOT NULL,
+			start_at DATETIME NOT NULL,
+			end_at DATETIME NOT NULL,
+			status VARCHAR(20) NOT NULL DEFAULT 'scheduled',
+			capacity INTEGER,
+			created_at DATETIME,
+			updated_at DATETIME,
+			UNIQUE(course_id, session_date),
+			FOREIGN KEY (course_id) REFERENCES "Course"(id) ON UPDATE CASCADE ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_class_session_course_id ON "ClassSession" (course_id);
+		CREATE INDEX IF NOT EXISTS idx_class_session_date ON "ClassSession" (session_date);
+		CREATE INDEX IF NOT EXISTS idx_class_session_status ON "ClassSession" (status);
+	`
+
+	if err := DB.Exec(query).Error; err != nil {
+		log.Printf("Failed to ensure ClassSession table exists: %v", err)
+	}
+
+	// Add session_id column to Enrollment if it doesn't exist
+	if DB.Migrator().HasTable("Enrollment") && !DB.Migrator().HasColumn("Enrollment", "session_id") {
+		if err := DB.Migrator().AddColumn(&model.Enrollment{}, "session_id"); err != nil {
+			log.Printf("Failed to add session_id column to Enrollment: %v", err)
+		}
 	}
 }
