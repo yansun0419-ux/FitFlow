@@ -97,12 +97,15 @@ export const registerManagerRequest = (
 
 export const roleIdToFrontendRole = (
   roleId: number,
-): "student" | "manager" | "supermanager" => {
+): "student" | "manager" | "supermanager" | "instructor" => {
   if (roleId === 2) {
     return "supermanager";
   }
   if (roleId === 3) {
     return "manager";
+  }
+  if (roleId === 4) {
+    return "instructor";
   }
   return "student";
 };

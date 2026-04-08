@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type Role = "student" | "manager" | "supermanager";
+export type Role = "student" | "manager" | "supermanager" | "instructor";
 
 type AuthStore = {
   isAuthenticated: boolean;
@@ -17,7 +17,8 @@ const getInitialState = () => {
   const role: Role | null =
     savedRole === "student" ||
     savedRole === "manager" ||
-    savedRole === "supermanager"
+    savedRole === "supermanager" ||
+    savedRole === "instructor"
       ? savedRole
       : null;
   const rawUserId = localStorage.getItem("user_id");
