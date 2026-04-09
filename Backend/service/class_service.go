@@ -48,10 +48,17 @@ func RegisterClass(userID uint, courseID uint) error {
 		return errors.New("class is full")
 	}
 
+	// Auto-assign the next scheduled session for this course.
+	session, err := dao.GetNextScheduledSession(courseID)
+	if err != nil {
+		return errors.New("no upcoming session found for this class")
+	}
+
 	enrollment := model.Enrollment{
-		UserID:   userID,
-		CourseID: courseID,
-		Status:   model.EnrollmentStatusEnrolled,
+		UserID:    userID,
+		CourseID:  courseID,
+		SessionID: &session.ID,
+		Status:    model.EnrollmentStatusEnrolled,
 	}
 	if err := dao.CreateEnrollment(&enrollment); err != nil {
 		return err
