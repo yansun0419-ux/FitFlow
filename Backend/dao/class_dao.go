@@ -53,22 +53,38 @@ func GetUserByID(id uint) (*model.User, error) {
 	return &user, nil
 }
 
-// CheckEnrollmentExists checks if a user is already enrolled in a course.
+// CheckEnrollmentExists checks if a user is already enrolled in a specific session of a course.
+// Only checks the next upcoming session (status = 'scheduled') so that past enrollments don't block re-enrollment.
 func CheckEnrollmentExists(userID uint, courseID uint) (bool, error) {
 	var count int64
 	if err := db.DB.Model(&model.Enrollment{}).
-		Where("user_id = ? AND course_id = ?", userID, courseID).
+		Where(`user_id = ? AND course_id = ? AND session_id IN (
+			SELECT id FROM ClassSession WHERE course_id = ? AND status = 'scheduled' ORDER BY session_date ASC LIMIT 1
+		)`, userID, courseID, courseID).
 		Count(&count).Error; err != nil {
 		return false, err
 	}
 	return count > 0, nil
 }
 
-// CountEnrollmentsByClass returns the number of enrollments for a course.
+// GetNextScheduledSession returns the next upcoming session for a course.
+func GetNextScheduledSession(courseID uint) (*model.ClassSession, error) {
+	var session model.ClassSession
+	if err := db.DB.Where("course_id = ? AND status = 'scheduled'", courseID).
+		Order("session_date ASC").
+		First(&session).Error; err != nil {
+		return nil, err
+	}
+	return &session, nil
+}
+
+// CountEnrollmentsByClass returns the number of enrollments for a course's next scheduled session.
 func CountEnrollmentsByClass(courseID uint) (int64, error) {
 	var count int64
 	if err := db.DB.Model(&model.Enrollment{}).
-		Where("course_id = ? AND status = ?", courseID, "enrolled").
+		Where(`course_id = ? AND session_id IN (
+			SELECT id FROM ClassSession WHERE course_id = ? AND status = 'scheduled' ORDER BY session_date ASC LIMIT 1
+		)`, courseID, courseID).
 		Count(&count).Error; err != nil {
 		return 0, err
 	}
@@ -80,9 +96,11 @@ func CreateEnrollment(enrollment *model.Enrollment) error {
 	return db.DB.Create(enrollment).Error
 }
 
-// DeleteEnrollment removes a user enrollment by user and course IDs.
+// DeleteEnrollment removes a user's enrollment for the next scheduled session of a course.
 func DeleteEnrollment(userID uint, courseID uint) error {
-	result := db.DB.Where("user_id = ? AND course_id = ?", userID, courseID).
+	result := db.DB.Where(`user_id = ? AND course_id = ? AND session_id IN (
+		SELECT id FROM ClassSession WHERE course_id = ? AND status = 'scheduled' ORDER BY session_date ASC LIMIT 1
+	) AND status = 'enrolled'`, userID, courseID, courseID).
 		Delete(&model.Enrollment{})
 	if result.Error != nil {
 		return result.Error
@@ -144,6 +162,7 @@ func BackfillUserDailyActivityFromEnrollments(userID uint) error {
 		SELECT e.id, e.user_id, e.course_id, DATE(e.enroll_time), CURRENT_TIMESTAMP
 		FROM Enrollment e
 		WHERE e.user_id = ?
+		AND e.status = 'attended'
 		AND NOT EXISTS (
 			SELECT 1
 			FROM UserDailyActivity uda
@@ -228,24 +247,4 @@ func GetUserCategoryActivitySummary(userID uint, fromDate time.Time, toDate time
 	}
 
 	return categories, nil
-}
-
-func GetEnrollment(userID uint, courseID uint) (*model.Enrollment, error) {
-	var enrollment model.Enrollment
-	if err := db.DB.Where("user_id = ? AND course_id = ?", userID, courseID).
-		First(&enrollment).Error; err != nil {
-		return nil, err
-	}
-	return &enrollment, nil
-}
-
-func UpdateEnrollmentStatus(userID uint, courseID uint, status string) (bool, error) {
-	tx := db.DB.Model(&model.Enrollment{}).
-		Where("user_id = ? AND course_id = ?", userID, courseID).
-		Update("status", status)
-
-	if tx.Error != nil {
-		return false, tx.Error
-	}
-	return tx.RowsAffected > 0, nil
 }

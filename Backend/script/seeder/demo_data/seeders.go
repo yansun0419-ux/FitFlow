@@ -13,11 +13,12 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // seedRoles ensures default roles exist in the database.
 func seedRoles() {
-	roles := []string{"Student", "SuperManager", "Manager", "Instructor"}
+	roles := []string{"Admin", "Teacher", "Student"}
 	for _, roleName := range roles {
 		var role model.Role
 		err := db.DB.Where("role_name = ?", roleName).First(&role).Error
@@ -37,10 +38,6 @@ func seedRoles() {
 }
 
 // seedUsers creates fake users by role up to the provided targets.
-// NOTE: 为了不改 main.go 的调用参数：
-// adminTarget -> SuperManager 数量
-// teacherTarget -> Manager 数量
-// studentTarget -> Student 数量
 func seedUsers(adminTarget int, teacherTarget int, studentTarget int) {
 	if adminTarget < 0 || teacherTarget < 0 || studentTarget < 0 {
 		return
@@ -52,10 +49,9 @@ func seedUsers(adminTarget int, teacherTarget int, studentTarget int) {
 	}
 
 	roles := []roleTarget{
-		{name: "SuperManager", target: adminTarget},
-		{name: "Manager", target: teacherTarget},
+		{name: "Admin", target: adminTarget},
+		{name: "Teacher", target: teacherTarget},
 		{name: "Student", target: studentTarget},
-		{name: "Instructor", target: 0}, // 如需种子，改成你想要的数量
 	}
 
 	defaultPassword, err := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
@@ -258,7 +254,13 @@ func seedEnrollments(targetCount int) {
 	}
 
 	toCreate := targetCount - int(existing)
-	statuses := []string{"enrolled", "attended", "missed"}
+	statuses := []string{
+		model.EnrollmentStatusEnrolled,
+		model.EnrollmentStatusEnrolled,
+		model.EnrollmentStatusAttended,
+		model.EnrollmentStatusMissed,
+		model.EnrollmentStatusEnrolled,
+	}
 	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 	lookbackDays := 35
 
@@ -299,6 +301,34 @@ func seedEnrollments(targetCount int) {
 	}
 
 	log.Printf("Seeded Enrollment: created %d fake rows", created)
+}
+
+// backfillEnrollmentSessionIDs links enrollments to a matching class session when the enrollment date exists.
+func backfillEnrollmentSessionIDs() {
+	result := db.DB.Exec(`
+		UPDATE Enrollment
+		SET session_id = (
+			SELECT cs.id
+			FROM ClassSession cs
+			WHERE cs.course_id = Enrollment.course_id
+			  AND cs.session_date <= DATE(Enrollment.enroll_time)
+			ORDER BY cs.session_date DESC, cs.id DESC
+			LIMIT 1
+		)
+		WHERE session_id IS NULL
+		  AND EXISTS (
+			SELECT 1
+			FROM ClassSession cs
+			WHERE cs.course_id = Enrollment.course_id
+			  AND cs.session_date <= DATE(Enrollment.enroll_time)
+		  )
+	`)
+	if result.Error != nil {
+		log.Printf("Enrollment session backfill warning: failed to update session_id values (%v)", result.Error)
+		return
+	}
+
+	log.Printf("Enrollment session backfill: linked %d rows to ClassSession records", result.RowsAffected)
 }
 
 // ensureAnalyticsCoverageEnrollments guarantees one student has rows across 7d and 1m windows.
@@ -342,7 +372,7 @@ func ensureAnalyticsCoverageEnrollments(courses []model.Course) error {
 			enrollment = model.Enrollment{
 				UserID:     student.ID,
 				CourseID:   course.ID,
-				Status:     "enrolled",
+					Status:     model.EnrollmentStatusAttended,
 				EnrollTime: enrollTime,
 			}
 			if err := db.DB.Create(&enrollment).Error; err != nil {
@@ -353,7 +383,7 @@ func ensureAnalyticsCoverageEnrollments(courses []model.Course) error {
 		}
 
 		if err := db.DB.Model(&enrollment).Updates(map[string]any{
-			"status":      "enrolled",
+				"status":      model.EnrollmentStatusAttended,
 			"enroll_time": enrollTime,
 		}).Error; err != nil {
 			return err
@@ -363,4 +393,155 @@ func ensureAnalyticsCoverageEnrollments(courses []model.Course) error {
 
 	log.Printf("Enrollment analytics coverage: ensured %d rows for student_id=%d (created=%d, updated=%d)", limit, student.ID, created, updated)
 	return nil
+}
+
+// seedClassSessions generates completed sessions for the last 30 days and scheduled sessions for the next 12 weeks.
+func seedClassSessions() {
+	var courses []model.Course
+	if err := db.DB.Find(&courses).Error; err != nil {
+		log.Printf("Skip ClassSession seed: failed to load courses (%v)", err)
+		return
+	}
+
+	if len(courses) == 0 {
+		log.Printf("Skip ClassSession seed: no courses found")
+		return
+	}
+
+	today := time.Now().UTC()
+	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
+	completedWindowStart := today.AddDate(0, 0, -30)
+
+	created := 0
+	for _, course := range courses {
+		if course.Weekday == "" {
+			continue
+		}
+
+		// Find first occurrence of the target weekday
+		targetWeekday := normalizeWeekdayForSeed(course.Weekday)
+		if targetWeekday == "" {
+			continue
+		}
+
+		// Seed completed sessions in the last 30 days so analytics and history have data.
+		for sessionDate := getPreviousWeekday(today, targetWeekday); !sessionDate.Before(completedWindowStart); sessionDate = sessionDate.AddDate(0, 0, -7) {
+			session := &model.ClassSession{
+				CourseID:    course.ID,
+				SessionDate: sessionDate.Format("2006-01-02"),
+				StartAt:     combineDateTimeForSeed(sessionDate, course.StartTime),
+				EndAt:       combineDateTimeForSeed(sessionDate, course.EndTime),
+				Status:      "completed",
+				Capacity:    course.Capacity,
+			}
+
+			result := db.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(session)
+			if result.Error != nil {
+				log.Printf("ClassSession seed warning: failed to create completed session for course %d (%v)", course.ID, result.Error)
+				continue
+			}
+			if result.RowsAffected > 0 {
+				created++
+			}
+		}
+
+		firstSessionDate := getNextWeekday(today, targetWeekday)
+
+		// Generate 12 weeks of sessions
+		for week := 0; week < 12; week++ {
+			sessionDate := firstSessionDate.AddDate(0, 0, week*7)
+			startAt := combineDateTimeForSeed(sessionDate, course.StartTime)
+			endAt := combineDateTimeForSeed(sessionDate, course.EndTime)
+
+			session := &model.ClassSession{
+				CourseID:    course.ID,
+				SessionDate: sessionDate.Format("2006-01-02"),
+				StartAt:     startAt,
+				EndAt:       endAt,
+				Status:      "scheduled",
+				Capacity:    course.Capacity,
+			}
+
+			result := db.DB.Clauses(clause.OnConflict{DoNothing: true}).Create(session)
+			if result.Error != nil {
+				log.Printf("ClassSession seed warning: failed to create session for course %d (%v)", course.ID, result.Error)
+				continue
+			}
+			if result.RowsAffected > 0 {
+				created++
+			}
+		}
+	}
+
+	log.Printf("Seeded ClassSession: created %d sessions", created)
+}
+
+func getPreviousWeekday(fromDate time.Time, targetWeekday string) time.Time {
+	weekdayMap := map[string]string{
+		"mon": "Monday",
+		"tue": "Tuesday",
+		"wed": "Wednesday",
+		"thu": "Thursday",
+		"fri": "Friday",
+		"sat": "Saturday",
+		"sun": "Sunday",
+	}
+
+	targetDayName, ok := weekdayMap[targetWeekday]
+	if !ok {
+		return fromDate
+	}
+
+	current := fromDate.AddDate(0, 0, -1)
+	for i := 0; i < 7; i++ {
+		if current.Weekday().String() == targetDayName {
+			return current
+		}
+		current = current.AddDate(0, 0, -1)
+	}
+
+	return fromDate.AddDate(0, 0, -7)
+}
+
+func normalizeWeekdayForSeed(weekday string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(weekday))
+	if len(trimmed) <= 3 {
+		return trimmed
+	}
+	return trimmed[:3]
+}
+
+func getNextWeekday(fromDate time.Time, targetWeekday string) time.Time {
+	weekdayMap := map[string]string{
+		"mon": "Monday",
+		"tue": "Tuesday",
+		"wed": "Wednesday",
+		"thu": "Thursday",
+		"fri": "Friday",
+		"sat": "Saturday",
+		"sun": "Sunday",
+	}
+
+	targetDayName, ok := weekdayMap[targetWeekday]
+	if !ok {
+		return fromDate
+	}
+
+	current := fromDate
+	for i := 0; i < 7; i++ {
+		if current.Weekday().String() == targetDayName {
+			return current
+		}
+		current = current.AddDate(0, 0, 1)
+	}
+
+	return fromDate
+}
+
+func combineDateTimeForSeed(date time.Time, timeOnly model.TimeOnly) time.Time {
+	if timeOnly.Time.IsZero() {
+		return date
+	}
+	hour, minute, second := timeOnly.Time.Clock()
+	return time.Date(date.Year(), date.Month(), date.Day(), hour, minute, second, 0, date.Location())
 }

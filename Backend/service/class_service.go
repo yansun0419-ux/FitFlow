@@ -5,6 +5,7 @@ import (
 	"math"
 	"my-course-backend/dao"
 	"my-course-backend/model"
+	"strings"
 	"time"
 )
 
@@ -19,12 +20,24 @@ func RegisterClass(userID uint, courseID uint) error {
 		return errors.New("class not found")
 	}
 
+	if err := validateEnrollmentWindow(class, time.Now()); err != nil {
+		return err
+	}
+
 	exists, err := dao.CheckEnrollmentExists(userID, courseID)
 	if err != nil {
 		return err
 	}
 	if exists {
 		return errors.New("enrollment already exists")
+	}
+
+	hasOverlap, err := hasScheduleOverlap(userID, class)
+	if err != nil {
+		return err
+	}
+	if hasOverlap {
+		return errors.New("class schedule overlaps with an existing enrolled class")
 	}
 
 	count, err := dao.CountEnrollmentsByClass(courseID)
@@ -35,10 +48,17 @@ func RegisterClass(userID uint, courseID uint) error {
 		return errors.New("class is full")
 	}
 
+	// Auto-assign the next scheduled session for this course.
+	session, err := dao.GetNextScheduledSession(courseID)
+	if err != nil {
+		return errors.New("no upcoming session found for this class")
+	}
+
 	enrollment := model.Enrollment{
-		UserID:   userID,
-		CourseID: courseID,
-		Status:   "registered",
+		UserID:    userID,
+		CourseID:  courseID,
+		SessionID: &session.ID,
+		Status:    model.EnrollmentStatusEnrolled,
 	}
 	if err := dao.CreateEnrollment(&enrollment); err != nil {
 		return err
@@ -47,13 +67,117 @@ func RegisterClass(userID uint, courseID uint) error {
 	return dao.BackfillUserDailyActivityFromEnrollments(userID)
 }
 
+func hasScheduleOverlap(userID uint, targetClass *model.Course) (bool, error) {
+	enrolledCourses, err := dao.ListEnrolledCoursesByUser(userID)
+	if err != nil {
+		return false, err
+	}
+
+	for i := range enrolledCourses {
+		existing := &enrolledCourses[i]
+		if existing.ID == targetClass.ID {
+			continue
+		}
+
+		if !isSameWeekday(existing.Weekday, targetClass.Weekday) {
+			continue
+		}
+
+		if timeRangesOverlap(existing.StartTime, existing.EndTime, targetClass.StartTime, targetClass.EndTime) {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func isSameWeekday(a string, b string) bool {
+	normalizedA := normalizeWeekday(a)
+	normalizedB := normalizeWeekday(b)
+
+	if normalizedA == "" || normalizedB == "" {
+		return true
+	}
+
+	return normalizedA == normalizedB
+}
+
+func normalizeWeekday(value string) string {
+	trimmed := strings.ToLower(strings.TrimSpace(value))
+	if len(trimmed) <= 3 {
+		return trimmed
+	}
+	return trimmed[:3]
+}
+
+// validateEnrollmentWindow enforces that enrollment opens 25 hours before the next class start.
+func validateEnrollmentWindow(class *model.Course, now time.Time) error {
+	if class == nil || class.StartTime.Time.IsZero() {
+		return errors.New("invalid class schedule")
+	}
+
+	weekdayMap := map[string]time.Weekday{
+		"sun": time.Sunday,
+		"mon": time.Monday,
+		"tue": time.Tuesday,
+		"wed": time.Wednesday,
+		"thu": time.Thursday,
+		"fri": time.Friday,
+		"sat": time.Saturday,
+	}
+
+	targetWeekday, ok := weekdayMap[normalizeWeekday(class.Weekday)]
+	if !ok {
+		return errors.New("invalid class schedule")
+	}
+
+	loc := now.Location()
+	nextStart := time.Date(now.Year(), now.Month(), now.Day(), class.StartTime.Hour(), class.StartTime.Minute(), 0, 0, loc)
+
+	daysAhead := (int(targetWeekday) - int(now.Weekday()) + 7) % 7
+	nextStart = nextStart.AddDate(0, 0, daysAhead)
+
+	// If today's class already started, use next week's occurrence.
+	if daysAhead == 0 && now.After(nextStart) {
+		nextStart = nextStart.AddDate(0, 0, 7)
+	}
+
+	if now.After(nextStart) {
+		return errors.New("registration closed: class has already started")
+	}
+
+	enrollmentOpen := nextStart.Add(-25 * time.Hour)
+	if now.Before(enrollmentOpen) {
+		return errors.New("enrollment opens 25 hours before class start.")
+	}
+
+	return nil
+}
+
+func timeRangesOverlap(startA, endA, startB, endB model.TimeOnly) bool {
+	if startA.Time.IsZero() || endA.Time.IsZero() || startB.Time.IsZero() || endB.Time.IsZero() {
+		return false
+	}
+
+	startAMin := toMinutes(startA)
+	endAMin := toMinutes(endA)
+	startBMin := toMinutes(startB)
+	endBMin := toMinutes(endB)
+
+	return startAMin < endBMin && startBMin < endAMin
+}
+
+func toMinutes(value model.TimeOnly) int {
+	return value.Hour()*60 + value.Minute()
+}
+
 // DropClass removes a user's enrollment from a course.
 func DropClass(userID uint, courseID uint) error {
 	if err := dao.DeleteEnrollment(userID, courseID); err != nil {
 		return err
 	}
 
-	return dao.BackfillUserDailyActivityFromEnrollments(userID)
+	return nil
 }
 
 // ListClassEnrollments returns all enrollments for a course.
