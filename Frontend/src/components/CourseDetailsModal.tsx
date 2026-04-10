@@ -25,9 +25,12 @@ interface CourseDetailsModalProps {
   onClose: () => void;
   onBook?: (course: CourseCardItem) => void;
   onDrop?: (course: CourseCardItem) => void;
+  onViewRoster?: (course: CourseCardItem) => void;
   booking?: boolean;
   dropping?: boolean;
   enrolled?: boolean;
+  bookingLocked?: boolean;
+  bookingHint?: string;
 }
 
 const CourseDetailsModal = ({
@@ -36,9 +39,12 @@ const CourseDetailsModal = ({
   onClose,
   onBook,
   onDrop,
+  onViewRoster,
   booking = false,
   dropping = false,
   enrolled = false,
+  bookingLocked = false,
+  bookingHint,
 }: CourseDetailsModalProps) => {
   if (!course) return null;
 
@@ -106,6 +112,12 @@ const CourseDetailsModal = ({
         </div>
 
         <div className="flex flex-col gap-4">
+          {bookingHint && !enrolled && (
+            <div className="p-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 text-sm">
+              {bookingHint}
+            </div>
+          )}
+
           <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100">
             <div>
               {course.spots === 0 ? (
@@ -137,36 +149,54 @@ const CourseDetailsModal = ({
             <Button variant="secondary" onClick={onClose} className="w-full">
               Cancel
             </Button>
-            <Button
-              variant={
-                enrolled ? "danger" : course.spots === 0 ? "outline" : "primary"
-              }
-              className="w-full shadow-lg shadow-indigo-200"
-              onClick={() => {
-                if (enrolled) {
-                  if (onDrop) {
-                    onDrop(course);
+            <div className="grid grid-cols-1 gap-3">
+              <Button
+                variant={
+                  enrolled
+                    ? "danger"
+                    : course.spots === 0
+                      ? "outline"
+                      : "primary"
+                }
+                className="w-full shadow-lg shadow-indigo-200"
+                disabled={!enrolled && bookingLocked}
+                onClick={() => {
+                  if (enrolled) {
+                    if (onDrop) {
+                      onDrop(course);
+                      return;
+                    }
                     return;
                   }
-                  return;
-                }
-                if (onBook) {
-                  onBook(course);
-                  return;
-                }
-                onClose();
-              }}
-            >
-              {enrolled
-                ? dropping
-                  ? "Dropping..."
-                  : "Drop"
-                : booking
-                  ? "Booking..."
-                  : course.spots === 0
-                    ? "Join Waitlist"
-                    : "Book Now"}
-            </Button>
+                  if (onBook) {
+                    onBook(course);
+                    return;
+                  }
+                  onClose();
+                }}
+              >
+                {enrolled
+                  ? dropping
+                    ? "Dropping..."
+                    : "Drop"
+                  : booking
+                    ? "Booking..."
+                    : bookingLocked
+                      ? "Locked"
+                      : course.spots === 0
+                        ? "Join Waitlist"
+                        : "Book Now"}
+              </Button>
+              {onViewRoster && (
+                <Button
+                  variant="secondary"
+                  className="w-full"
+                  onClick={() => onViewRoster(course)}
+                >
+                  View Roster
+                </Button>
+              )}
+            </div>
           </div>
         </div>
       </div>
