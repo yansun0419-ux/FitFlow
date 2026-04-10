@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useAuthStore } from "../store/authStore";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -26,7 +25,8 @@ type ClassData = {
 };
 
 const InstructorDashboard = () => {
-  const { role } = useAuthStore();
+  const isPreviewInstructor =
+    sessionStorage.getItem("instructor_preview") === "true";
   const [selectedClassId, setSelectedClassId] = useState<number | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newStudent, setNewStudent] = useState({ name: "", email: "" });
@@ -40,9 +40,24 @@ const InstructorDashboard = () => {
       capacity: 20,
       status: "completed",
       students: [
-        { id: 101, name: "Alice Johnson", email: "alice@example.com", status: "present" },
-        { id: 102, name: "Bob Smith", email: "bob@example.com", status: "present" },
-        { id: 103, name: "Charlie Davis", email: "charlie@example.com", status: "absent" },
+        {
+          id: 101,
+          name: "Alice Johnson",
+          email: "alice@example.com",
+          status: "present",
+        },
+        {
+          id: 102,
+          name: "Bob Smith",
+          email: "bob@example.com",
+          status: "present",
+        },
+        {
+          id: 103,
+          name: "Charlie Davis",
+          email: "charlie@example.com",
+          status: "absent",
+        },
       ],
     },
     {
@@ -52,10 +67,30 @@ const InstructorDashboard = () => {
       capacity: 15,
       status: "active",
       students: [
-        { id: 201, name: "David Miller", email: "david@example.com", status: "pending" },
-        { id: 202, name: "Emma Wilson", email: "emma@example.com", status: "pending" },
-        { id: 203, name: "Frank Wright", email: "frank@example.com", status: "pending" },
-        { id: 204, name: "Grace Lee", email: "grace@example.com", status: "pending" },
+        {
+          id: 201,
+          name: "David Miller",
+          email: "david@example.com",
+          status: "pending",
+        },
+        {
+          id: 202,
+          name: "Emma Wilson",
+          email: "emma@example.com",
+          status: "pending",
+        },
+        {
+          id: 203,
+          name: "Frank Wright",
+          email: "frank@example.com",
+          status: "pending",
+        },
+        {
+          id: 204,
+          name: "Grace Lee",
+          email: "grace@example.com",
+          status: "pending",
+        },
       ],
     },
     {
@@ -65,15 +100,28 @@ const InstructorDashboard = () => {
       capacity: 10,
       status: "upcoming",
       students: [
-        { id: 301, name: "Henry Ford", email: "henry@example.com", status: "pending" },
-        { id: 302, name: "Ivy Chen", email: "ivy@example.com", status: "pending" },
+        {
+          id: 301,
+          name: "Henry Ford",
+          email: "henry@example.com",
+          status: "pending",
+        },
+        {
+          id: 302,
+          name: "Ivy Chen",
+          email: "ivy@example.com",
+          status: "pending",
+        },
       ],
     },
   ]);
 
   const selectedClass = classes.find((c) => c.id === selectedClassId);
 
-  const toggleAttendance = (studentId: number, status: "present" | "absent") => {
+  const toggleAttendance = (
+    studentId: number,
+    status: "present" | "absent",
+  ) => {
     if (!selectedClassId) return;
     setClasses((prev) =>
       prev.map((c) => {
@@ -81,10 +129,10 @@ const InstructorDashboard = () => {
         return {
           ...c,
           students: c.students.map((s) =>
-            s.id === studentId ? { ...s, status } : s
+            s.id === studentId ? { ...s, status } : s,
           ),
         };
-      })
+      }),
     );
   };
 
@@ -97,7 +145,7 @@ const InstructorDashboard = () => {
           ...c,
           students: c.students.map((s) => ({ ...s, status: "present" })),
         };
-      })
+      }),
     );
   };
 
@@ -107,8 +155,13 @@ const InstructorDashboard = () => {
       return;
     }
 
-    if (selectedClass && selectedClass.students.length >= selectedClass.capacity) {
-      const confirmed = window.confirm("Class is already at full capacity. Add walk-in anyway?");
+    if (
+      selectedClass &&
+      selectedClass.students.length >= selectedClass.capacity
+    ) {
+      const confirmed = window.confirm(
+        "Class is already at full capacity. Add walk-in anyway?",
+      );
       if (!confirmed) return;
     }
 
@@ -125,7 +178,7 @@ const InstructorDashboard = () => {
           ...c,
           students: [...c.students, walkIn],
         };
-      })
+      }),
     );
 
     setIsAddModalOpen(false);
@@ -133,10 +186,37 @@ const InstructorDashboard = () => {
     toast.success(`${newStudent.name} added and marked as present!`);
   };
 
+  const handleSubmitAttendance = () => {
+    if (!selectedClass) {
+      return;
+    }
+
+    toast.success("Attendance submitted in demo mode.");
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-6 relative">
       <BackgroundBlobs />
       <div className="max-w-7xl mx-auto relative z-10">
+        {isPreviewInstructor && (
+          <Card className="mb-6 p-4 border-dashed border-indigo-200 bg-indigo-50/70">
+            <div className="flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <Badge className="bg-indigo-100 text-indigo-700 mb-2">
+                  Demo Mode
+                </Badge>
+                <p className="text-sm text-slate-700 font-medium">
+                  This instructor dashboard uses mock roster data so you can
+                  demo attendance and walk-in flows without backend login.
+                </p>
+              </div>
+              <p className="text-xs text-slate-500">
+                Mark Present, set No-show, then submit attendance.
+              </p>
+            </div>
+          </Card>
+        )}
+
         <header className="mb-8 flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="w-14 h-14 bg-linear-to-tr from-indigo-600 to-violet-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
@@ -146,10 +226,17 @@ const InstructorDashboard = () => {
               <h1 className="text-3xl font-bold text-slate-800 tracking-tight">
                 Instructor Dashboard
               </h1>
-              <p className="text-slate-500 font-medium">Welcome back, Instructor One</p>
+              <p className="text-slate-500 font-medium">
+                Welcome back, Instructor One
+              </p>
             </div>
           </div>
           <div className="flex gap-3">
+            {isPreviewInstructor && (
+              <Badge className="bg-slate-900 text-white px-4 py-1.5 text-sm">
+                Preview
+              </Badge>
+            )}
             <Badge className="bg-indigo-50 text-indigo-700 px-4 py-1.5 text-sm">
               Yoga Specialist
             </Badge>
@@ -198,13 +285,15 @@ const InstructorDashboard = () => {
                       cls.status === "active"
                         ? "bg-emerald-100 text-emerald-700"
                         : cls.status === "completed"
-                        ? "bg-slate-100 text-slate-600"
-                        : "bg-blue-100 text-blue-700"
+                          ? "bg-slate-100 text-slate-600"
+                          : "bg-blue-100 text-blue-700"
                     }
                   >
                     {cls.status.charAt(0).toUpperCase() + cls.status.slice(1)}
                   </Badge>
-                  <Icons.ChevronRight className={`w-4 h-4 transition-transform ${selectedClassId === cls.id ? "rotate-90 text-indigo-500" : "text-slate-300"}`} />
+                  <Icons.ChevronRight
+                    className={`w-4 h-4 transition-transform ${selectedClassId === cls.id ? "rotate-90 text-indigo-500" : "text-slate-300"}`}
+                  />
                 </div>
               </Card>
             ))}
@@ -237,7 +326,10 @@ const InstructorDashboard = () => {
                         <Icons.Plus className="w-4 h-4 mr-2" />
                         Add Walk-in
                       </Button>
-                      <Button className="bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-100">
+                      <Button
+                        className="bg-indigo-600 hover:bg-indigo-700 shadow-md shadow-indigo-100"
+                        onClick={handleSubmitAttendance}
+                      >
                         Submit Attendance
                       </Button>
                     </div>
@@ -254,7 +346,10 @@ const InstructorDashboard = () => {
                       </thead>
                       <tbody className="divide-y divide-slate-50">
                         {selectedClass.students.map((student) => (
-                          <tr key={student.id} className="hover:bg-slate-50/50 transition-colors">
+                          <tr
+                            key={student.id}
+                            className="hover:bg-slate-50/50 transition-colors"
+                          >
                             <td className="px-6 py-4">
                               <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 font-bold border border-slate-200">
@@ -262,28 +357,42 @@ const InstructorDashboard = () => {
                                 </div>
                                 <div>
                                   <div className="flex items-center gap-2">
-                                    <p className="font-bold text-slate-700">{student.name}</p>
+                                    <p className="font-bold text-slate-700">
+                                      {student.name}
+                                    </p>
                                     {student.id > 1000 && (
-                                      <Badge className="bg-amber-50 text-amber-700 text-[10px] py-0 px-1.5">WALK-IN</Badge>
+                                      <Badge className="bg-amber-50 text-amber-700 text-[10px] py-0 px-1.5">
+                                        WALK-IN
+                                      </Badge>
                                     )}
                                   </div>
-                                  <p className="text-xs text-slate-400">{student.email}</p>
+                                  <p className="text-xs text-slate-400">
+                                    {student.email}
+                                  </p>
                                 </div>
                               </div>
                             </td>
                             <td className="px-6 py-4 text-center">
                               {student.status === "present" ? (
-                                <Badge className="bg-emerald-100 text-emerald-700">Present</Badge>
+                                <Badge className="bg-emerald-100 text-emerald-700">
+                                  Present
+                                </Badge>
                               ) : student.status === "absent" ? (
-                                <Badge className="bg-rose-100 text-rose-700">Absent</Badge>
+                                <Badge className="bg-rose-100 text-rose-700">
+                                  No-show
+                                </Badge>
                               ) : (
-                                <Badge className="bg-slate-100 text-slate-500">Pending</Badge>
+                                <Badge className="bg-slate-100 text-slate-500">
+                                  Pending
+                                </Badge>
                               )}
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex justify-end gap-2">
                                 <button
-                                  onClick={() => toggleAttendance(student.id, "present")}
+                                  onClick={() =>
+                                    toggleAttendance(student.id, "present")
+                                  }
                                   className={`p-2 rounded-lg transition-all ${
                                     student.status === "present"
                                       ? "bg-emerald-500 text-white shadow-md shadow-emerald-100"
@@ -291,16 +400,18 @@ const InstructorDashboard = () => {
                                   }`}
                                   title="Mark Present"
                                 >
-                                  <Icons.Check className="w-5 h-5" />
+                                  <Icons.Check />
                                 </button>
                                 <button
-                                  onClick={() => toggleAttendance(student.id, "absent")}
+                                  onClick={() =>
+                                    toggleAttendance(student.id, "absent")
+                                  }
                                   className={`p-2 rounded-lg transition-all ${
                                     student.status === "absent"
                                       ? "bg-rose-500 text-white shadow-md shadow-rose-100"
                                       : "bg-white text-slate-300 border border-slate-200 hover:border-rose-500 hover:text-rose-500"
                                   }`}
-                                  title="Mark Absent"
+                                  title="Mark No-show"
                                 >
                                   <Icons.X className="w-5 h-5" />
                                 </button>
@@ -318,9 +429,12 @@ const InstructorDashboard = () => {
                 <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
                   <Icons.Calendar className="w-10 h-10" />
                 </div>
-                <h3 className="text-xl font-bold text-slate-600 mb-2">Select a Class</h3>
+                <h3 className="text-xl font-bold text-slate-600 mb-2">
+                  Select a Class
+                </h3>
                 <p className="max-w-xs mx-auto">
-                  Choose a class from your schedule to view the student roster and manage attendance.
+                  Choose a class from your schedule to view the student roster
+                  and manage attendance.
                 </p>
               </div>
             )}
@@ -335,26 +449,36 @@ const InstructorDashboard = () => {
             <div className="w-16 h-16 bg-slate-100 rounded-2xl mx-auto flex items-center justify-center mb-4">
               <Icons.User className="w-8 h-8 text-slate-600" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-800">Add Walk-in Student</h2>
+            <h2 className="text-2xl font-bold text-slate-800">
+              Add Walk-in Student
+            </h2>
             <p className="text-slate-500">Adding to {selectedClass?.name}</p>
           </div>
 
           <div className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 ml-1">Full Name</label>
+              <label className="text-sm font-semibold text-slate-700 ml-1">
+                Full Name
+              </label>
               <Input
                 placeholder="e.g. John Doe"
                 value={newStudent.name}
-                onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                onChange={(e) =>
+                  setNewStudent({ ...newStudent, name: e.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-semibold text-slate-700 ml-1">Email Address</label>
+              <label className="text-sm font-semibold text-slate-700 ml-1">
+                Email Address
+              </label>
               <Input
                 type="email"
                 placeholder="john@example.com"
                 value={newStudent.email}
-                onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                onChange={(e) =>
+                  setNewStudent({ ...newStudent, email: e.target.value })
+                }
               />
             </div>
 
