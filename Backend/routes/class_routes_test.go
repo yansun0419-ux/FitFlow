@@ -43,6 +43,7 @@ func setupRouteTestDB(t *testing.T) {
 		&model.User{},
 		&model.UserInfo{},
 		&model.Course{},
+		&model.ClassSession{},
 		&model.Enrollment{},
 		&model.UserDailyActivity{},
 	); err != nil {
@@ -138,6 +139,38 @@ func seedRouteCourseSession(t *testing.T, course model.Course) model.ClassSessio
 	}
 
 	return session
+}
+
+func seedRoutePastSession(t *testing.T, course model.Course, daysAgo int) model.ClassSession {
+	t.Helper()
+	sessionDate := time.Now().AddDate(0, 0, -daysAgo)
+	session := model.ClassSession{
+		CourseID:    course.ID,
+		SessionDate: sessionDate.Format("2006-01-02"),
+		StartAt:     time.Date(sessionDate.Year(), sessionDate.Month(), sessionDate.Day(), course.StartTime.Hour(), course.StartTime.Minute(), 0, 0, sessionDate.Location()),
+		EndAt:       time.Date(sessionDate.Year(), sessionDate.Month(), sessionDate.Day(), course.EndTime.Hour(), course.EndTime.Minute(), 0, 0, sessionDate.Location()),
+		Status:      "completed",
+		Capacity:    course.Capacity,
+	}
+	if err := db.DB.Create(&session).Error; err != nil {
+		t.Fatalf("failed to seed past session: %v", err)
+	}
+	return session
+}
+
+func seedRouteEnrollmentForSession(t *testing.T, userID uint, courseID uint, sessionID uint, status string, enrollTime time.Time) model.Enrollment {
+	t.Helper()
+	enrollment := model.Enrollment{
+		UserID:     userID,
+		CourseID:   courseID,
+		SessionID:  &sessionID,
+		Status:     status,
+		EnrollTime: enrollTime,
+	}
+	if err := db.DB.Create(&enrollment).Error; err != nil {
+		t.Fatalf("failed to seed enrollment: %v", err)
+	}
+	return enrollment
 }
 
 func seedRouteEnrollmentAt(t *testing.T, userID uint, courseID uint, status string, enrollTime time.Time) model.Enrollment {
@@ -388,8 +421,11 @@ func TestGetUserAnalyticsEndpoint_OK(t *testing.T) {
 		t.Fatalf("failed to set courseB duration: %v", err)
 	}
 	now := time.Now()
-	seedRouteEnrollmentAt(t, user.ID, courseA.ID, model.EnrollmentStatusAttended, now.AddDate(0, 0, -1))
-	seedRouteEnrollmentAt(t, user.ID, courseB.ID, model.EnrollmentStatusMissed, now.AddDate(0, 0, -2))
+	// Create past sessions so analytics correctly uses session dates (not enroll_time).
+	pastSessionA := seedRoutePastSession(t, courseA, 1)
+	pastSessionB := seedRoutePastSession(t, courseB, 2)
+	seedRouteEnrollmentForSession(t, user.ID, courseA.ID, pastSessionA.ID, model.EnrollmentStatusAttended, now.AddDate(0, 0, -1))
+	seedRouteEnrollmentForSession(t, user.ID, courseB.ID, pastSessionB.ID, model.EnrollmentStatusMissed, now.AddDate(0, 0, -2))
 	token := issueRouteToken(t, user.Email, "secret123")
 	router := routes.SetupRouter()
 

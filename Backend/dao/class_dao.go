@@ -53,7 +53,7 @@ func GetUserByID(id uint) (*model.User, error) {
 	return &user, nil
 }
 
-// CheckEnrollmentExists checks if a user is already enrolled in a specific session of a course.
+// CheckEnrollmentExists checks if a user is already enrolled in a course.
 // Only checks the next upcoming session (status = 'scheduled') so that past enrollments don't block re-enrollment.
 func CheckEnrollmentExists(userID uint, courseID uint) (bool, error) {
 	var count int64
@@ -78,7 +78,7 @@ func GetNextScheduledSession(courseID uint) (*model.ClassSession, error) {
 	return &session, nil
 }
 
-// CountEnrollmentsByClass returns the number of enrollments for a course's next scheduled session.
+// CountEnrollmentsByClass returns the number of enrollments for a course.
 func CountEnrollmentsByClass(courseID uint) (int64, error) {
 	var count int64
 	if err := db.DB.Model(&model.Enrollment{}).
@@ -96,7 +96,7 @@ func CreateEnrollment(enrollment *model.Enrollment) error {
 	return db.DB.Create(enrollment).Error
 }
 
-// DeleteEnrollment removes a user's enrollment for the next scheduled session of a course.
+// DeleteEnrollment removes a user enrollment by user and course IDs.
 func DeleteEnrollment(userID uint, courseID uint) error {
 	result := db.DB.Where(`user_id = ? AND course_id = ? AND session_id IN (
 		SELECT id FROM ClassSession WHERE course_id = ? AND status = 'scheduled' ORDER BY session_date ASC LIMIT 1
@@ -122,13 +122,14 @@ func ListEnrollmentsByClass(courseID uint) ([]model.Enrollment, error) {
 	return enrollments, nil
 }
 
-// ListEnrolledCoursesByUser returns all courses a user is enrolled in.
+// ListEnrolledCoursesByUser returns upcoming courses a user is enrolled in.
+// Only includes enrollments linked to scheduled sessions that haven't happened yet.
 func ListEnrolledCoursesByUser(userID uint) ([]model.Course, error) {
 	var courses []model.Course
 	if err := db.DB.Joins("INNER JOIN Enrollment ON Enrollment.course_id = Course.id").
-		Joins("INNER JOIN User ON User.id = Enrollment.user_id").
-		Where("User.id = ? AND Enrollment.status = ?", userID, "enrolled").
-		Order("Course.start_time ASC").
+		Joins("INNER JOIN ClassSession ON ClassSession.id = Enrollment.session_id").
+		Where("Enrollment.user_id = ? AND Enrollment.status = ? AND ClassSession.session_date >= DATE('now')", userID, "enrolled").
+		Order("ClassSession.session_date ASC, Course.start_time ASC").
 		Find(&courses).Error; err != nil {
 		return nil, err
 	}
@@ -156,18 +157,23 @@ func CreateDailyActivity(activity *model.UserDailyActivity) error {
 }
 
 // BackfillUserDailyActivityFromEnrollments syncs missing daily rows from Enrollment.
+// Uses the session date (when the class actually happened) instead of enroll_time,
+// and only includes past sessions so upcoming classes are excluded from analytics.
 func BackfillUserDailyActivityFromEnrollments(userID uint) error {
 	query := `
 		INSERT INTO UserDailyActivity (enrollment_id, user_id, course_id, activity_date, created_at)
-		SELECT e.id, e.user_id, e.course_id, DATE(e.enroll_time), CURRENT_TIMESTAMP
+		SELECT e.id, e.user_id, e.course_id,
+			COALESCE(cs.session_date, DATE(e.enroll_time)),
+			CURRENT_TIMESTAMP
 		FROM Enrollment e
+		LEFT JOIN ClassSession cs ON cs.id = e.session_id
 		WHERE e.user_id = ?
 		AND e.status = 'attended'
+		AND COALESCE(cs.session_date, DATE(e.enroll_time)) <= DATE('now')
 		AND NOT EXISTS (
 			SELECT 1
 			FROM UserDailyActivity uda
 			WHERE uda.enrollment_id = e.id
-			  AND uda.activity_date = DATE(e.enroll_time)
 		)
 	`
 
@@ -247,4 +253,24 @@ func GetUserCategoryActivitySummary(userID uint, fromDate time.Time, toDate time
 	}
 
 	return categories, nil
+}
+
+func GetEnrollment(userID uint, courseID uint) (*model.Enrollment, error) {
+	var enrollment model.Enrollment
+	if err := db.DB.Where("user_id = ? AND course_id = ?", userID, courseID).
+		First(&enrollment).Error; err != nil {
+		return nil, err
+	}
+	return &enrollment, nil
+}
+
+func UpdateEnrollmentStatus(userID uint, courseID uint, status string) (bool, error) {
+	tx := db.DB.Model(&model.Enrollment{}).
+		Where("user_id = ? AND course_id = ?", userID, courseID).
+		Update("status", status)
+
+	if tx.Error != nil {
+		return false, tx.Error
+	}
+	return tx.RowsAffected > 0, nil
 }

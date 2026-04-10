@@ -209,9 +209,9 @@ func ManagerAddUserEnrollment(c *gin.Context) {
 
 	if err := service.ManagerAddUserEnrollment(uint(id64), input.CourseID); err != nil {
 		switch err.Error() {
-		case "user not found", "class not found":
+		case "user not found", "class not found", "no upcoming session found for this class":
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-		case "enrollment already exists":
+		case "enrollment already exists", "class is full":
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

@@ -82,6 +82,47 @@ func InstructorListCourseEnrollments(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"enrollments": enrollments})
 }
 
+type InstructorAddEnrollmentInput struct {
+	UserID uint `json:"user_id" binding:"required"`
+}
+
+// InstructorAddEnrollment enrolls a user into the instructor's course.
+func InstructorAddEnrollment(c *gin.Context) {
+	instructorID, err := requireInstructorRole(c)
+	if err != nil {
+		return
+	}
+
+	courseIDStr := c.Param("id")
+	courseID64, err := strconv.ParseUint(courseIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid class ID"})
+		return
+	}
+
+	var input InstructorAddEnrollmentInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := service.InstructorAddEnrollment(instructorID, input.UserID, uint(courseID64)); err != nil {
+		switch err.Error() {
+		case "forbidden":
+			c.JSON(http.StatusForbidden, gin.H{"error": "forbidden"})
+		case "user not found", "class not found", "no upcoming session found for this class":
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		case "enrollment already exists", "class is full":
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "user enrolled successfully"})
+}
+
 type InstructorUpdateStatusInput struct {
 	UserID uint   `json:"user_id" binding:"required"`
 	Status string `json:"status" binding:"required"`

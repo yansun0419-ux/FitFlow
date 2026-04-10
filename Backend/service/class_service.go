@@ -272,7 +272,7 @@ func GetUserEnrolledClasses(userID uint) ([]model.Course, error) {
 	return courses, nil
 }
 
-// GetStudentAnalytics returns dashboard analytics for a date range.
+// GetUserAnalytics returns dashboard analytics for a date range.
 func GetUserAnalytics(userID uint, rangeKey string) (*model.UserAnalyticsResponse, error) {
 	if _, err := dao.GetUserByID(userID); err != nil {
 		return nil, errors.New("user not found")
@@ -282,8 +282,10 @@ func GetUserAnalytics(userID uint, rangeKey string) (*model.UserAnalyticsRespons
 		return nil, err
 	}
 
-	toDate := time.Now()
-	fromDate := resolveRangeStart(rangeKey, toDate)
+	// Cap toDate to today so analytics only include past/current-day classes, not future sessions.
+	now := time.Now()
+	toDate := time.Date(now.Year(), now.Month(), now.Day(), 23, 59, 59, 0, now.Location())
+	fromDate := resolveRangeStart(rangeKey, now)
 
 	totalClasses, activeDays, err := dao.GetUserActivityStats(userID, fromDate, toDate)
 	if err != nil {

@@ -17,7 +17,7 @@ func CreateManagerInviteCode(c *gin.Context) {
 		return
 	}
 
-	userID, err := service.GetStudentIDFromToken(tokenString)
+	userID, err := service.ExtractUserIDFromToken(tokenString)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
 		return

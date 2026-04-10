@@ -89,9 +89,6 @@ func ExtractUserIDFromToken(tokenString string) (uint, error) {
 	}
 }
 
-func GetStudentIDFromToken(tokenString string) (uint, error) {
-	return ExtractUserIDFromToken(tokenString)
-}
 
 func GetRoleIDFromToken(tokenString string) (uint, error) {
 	claims := jwt.MapClaims{}

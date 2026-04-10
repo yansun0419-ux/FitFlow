@@ -6,6 +6,51 @@ import (
 	"my-course-backend/model"
 )
 
+// InstructorAddEnrollment enrolls a user into a course taught by the instructor.
+// Instructors bypass the 25-hour enrollment window but still check ownership, duplicates, and capacity.
+func InstructorAddEnrollment(instructorID, userID, courseID uint) error {
+	course, err := dao.GetCourseByID(courseID)
+	if err != nil {
+		return errors.New("class not found")
+	}
+	if course.InstructorID != instructorID {
+		return errors.New("forbidden")
+	}
+
+	if _, err := dao.GetUserByID(userID); err != nil {
+		return errors.New("user not found")
+	}
+
+	exists, err := dao.CheckEnrollmentExists(userID, courseID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("enrollment already exists")
+	}
+
+	count, err := dao.CountEnrollmentsByClass(courseID)
+	if err != nil {
+		return err
+	}
+	if int(count) >= course.Capacity {
+		return errors.New("class is full")
+	}
+
+	session, err := dao.GetNextScheduledSession(courseID)
+	if err != nil {
+		return errors.New("no upcoming session found for this class")
+	}
+
+	enrollment := model.Enrollment{
+		UserID:    userID,
+		CourseID:  courseID,
+		SessionID: &session.ID,
+		Status:    model.EnrollmentStatusEnrolled,
+	}
+	return dao.CreateEnrollment(&enrollment)
+}
+
 func ListInstructorCourses(instructorID uint) ([]model.Course, error) {
 	return dao.ListCoursesByInstructor(instructorID)
 }

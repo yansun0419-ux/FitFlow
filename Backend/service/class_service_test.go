@@ -138,6 +138,40 @@ func setCourseSchedule(t *testing.T, courseID uint, weekday string, start string
 	}
 }
 
+// seedPastSession creates a ClassSession in the past (completed) for analytics tests.
+func seedPastSession(t *testing.T, course model.Course, daysAgo int) model.ClassSession {
+	t.Helper()
+	sessionDate := time.Now().AddDate(0, 0, -daysAgo)
+	session := model.ClassSession{
+		CourseID:    course.ID,
+		SessionDate: sessionDate.Format("2006-01-02"),
+		StartAt:     time.Date(sessionDate.Year(), sessionDate.Month(), sessionDate.Day(), course.StartTime.Hour(), course.StartTime.Minute(), 0, 0, sessionDate.Location()),
+		EndAt:       time.Date(sessionDate.Year(), sessionDate.Month(), sessionDate.Day(), course.EndTime.Hour(), course.EndTime.Minute(), 0, 0, sessionDate.Location()),
+		Status:      "completed",
+		Capacity:    course.Capacity,
+	}
+	if err := db.DB.Create(&session).Error; err != nil {
+		t.Fatalf("failed to seed past session: %v", err)
+	}
+	return session
+}
+
+// seedEnrollmentForSession creates an enrollment linked to a specific session.
+func seedEnrollmentForSession(t *testing.T, userID uint, courseID uint, sessionID uint, status string, enrollTime time.Time) model.Enrollment {
+	t.Helper()
+	enrollment := model.Enrollment{
+		UserID:     userID,
+		CourseID:   courseID,
+		SessionID:  &sessionID,
+		Status:     status,
+		EnrollTime: enrollTime,
+	}
+	if err := db.DB.Create(&enrollment).Error; err != nil {
+		t.Fatalf("failed to seed enrollment: %v", err)
+	}
+	return enrollment
+}
+
 func seedEnrollmentAt(t *testing.T, userID uint, courseID uint, status string, enrollTime time.Time) model.Enrollment {
 	t.Helper()
 
@@ -354,9 +388,13 @@ func TestGetUserAnalytics_SuccessWithPercentages(t *testing.T) {
 	}
 
 	now := time.Now()
-	seedEnrollmentAt(t, user.ID, courseCardio1.ID, model.EnrollmentStatusAttended, now.AddDate(0, 0, -1))
-	seedEnrollmentAt(t, user.ID, courseCardio2.ID, model.EnrollmentStatusAttended, now.AddDate(0, 0, -2))
-	seedEnrollmentAt(t, user.ID, courseNoCategory.ID, model.EnrollmentStatusMissed, now.AddDate(0, 0, -3))
+	// Create past sessions and link enrollments to them so analytics correctly uses session dates.
+	pastSession1 := seedPastSession(t, courseCardio1, 1)
+	pastSession2 := seedPastSession(t, courseCardio2, 2)
+	pastSession3 := seedPastSession(t, courseNoCategory, 3)
+	seedEnrollmentForSession(t, user.ID, courseCardio1.ID, pastSession1.ID, model.EnrollmentStatusAttended, now.AddDate(0, 0, -1))
+	seedEnrollmentForSession(t, user.ID, courseCardio2.ID, pastSession2.ID, model.EnrollmentStatusAttended, now.AddDate(0, 0, -2))
+	seedEnrollmentForSession(t, user.ID, courseNoCategory.ID, pastSession3.ID, model.EnrollmentStatusMissed, now.AddDate(0, 0, -3))
 
 	analytics, err := GetUserAnalytics(user.ID, "7d")
 	if err != nil {
