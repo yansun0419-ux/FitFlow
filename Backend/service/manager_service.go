@@ -181,3 +181,60 @@ func RegisterManager(input model.ManagerRegisterInput) error {
 		return nil
 	})
 }
+
+// ManagerListUsers lists users with pagination.
+func ManagerListUsers(page int, limit int) ([]model.User, int64, int, int, int, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+
+	offset := (page - 1) * limit
+	users, total, err := dao.ListUsersPaged(limit, offset)
+	if err != nil {
+		return nil, 0, 0, 0, 0, err
+	}
+
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+	return users, total, page, limit, totalPages, nil
+}
+
+// ManagerListUserEnrollments lists enrollments for a user.
+func ManagerListUserEnrollments(userID uint) ([]model.Enrollment, error) {
+	if _, err := dao.GetUserByID(userID); err != nil {
+		return nil, errors.New("user not found")
+	}
+	return dao.ListEnrollmentsByUser(userID)
+}
+
+// ManagerAddUserEnrollment adds an enrollment for a user.
+func ManagerAddUserEnrollment(userID uint, courseID uint) error {
+	if _, err := dao.GetUserByID(userID); err != nil {
+		return errors.New("user not found")
+	}
+	if _, err := dao.GetCourseByID(courseID); err != nil {
+		return errors.New("class not found")
+	}
+
+	exists, err := dao.CheckEnrollmentExists(userID, courseID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("enrollment already exists")
+	}
+
+	enrollment := &model.Enrollment{
+		UserID:   userID,
+		CourseID: courseID,
+		Status:   "enrolled",
+	}
+	return dao.CreateEnrollment(enrollment)
+}
+
+// ManagerDeleteUserEnrollment deletes an enrollment for a user.
+func ManagerDeleteUserEnrollment(userID uint, courseID uint) error {
+	return dao.DeleteEnrollment(userID, courseID)
+}

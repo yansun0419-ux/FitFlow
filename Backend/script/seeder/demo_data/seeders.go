@@ -18,7 +18,7 @@ import (
 
 // seedRoles ensures default roles exist in the database.
 func seedRoles() {
-	roles := []string{"Admin", "Teacher", "Student"}
+	roles := []string{"Student", "SuperManager", "Manager", "Instructor"}
 	for _, roleName := range roles {
 		var role model.Role
 		err := db.DB.Where("role_name = ?", roleName).First(&role).Error
@@ -49,8 +49,9 @@ func seedUsers(adminTarget int, teacherTarget int, studentTarget int) {
 	}
 
 	roles := []roleTarget{
-		{name: "Admin", target: adminTarget},
-		{name: "Teacher", target: teacherTarget},
+		{name: "SuperManager", target: 1},
+		{name: "Manager", target: adminTarget},
+		{name: "Instructor", target: teacherTarget},
 		{name: "Student", target: studentTarget},
 	}
 
