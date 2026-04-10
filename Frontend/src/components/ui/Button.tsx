@@ -5,11 +5,13 @@ const Button = ({
   variant = "primary",
   onClick,
   className = "",
+  disabled = false,
 }: {
   children: React.ReactNode;
   variant?: "primary" | "secondary" | "danger" | "ghost" | "outline";
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
   className?: string;
+  disabled?: boolean;
 }) => {
   const baseStyle =
     "px-5 py-2.5 rounded-xl font-semibold transition-all duration-300 transform active:scale-95 flex items-center justify-center gap-2";
@@ -25,7 +27,8 @@ const Button = ({
   return (
     <button
       onClick={onClick}
-      className={`${baseStyle} ${variants[variant]} ${className}`}
+      disabled={disabled}
+      className={`${baseStyle} ${variants[variant]} ${disabled ? "opacity-50 cursor-not-allowed active:scale-100 hover:shadow-none" : ""} ${className}`}
     >
       {children}
     </button>

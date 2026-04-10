@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
+import Badge from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import { Icons } from "../lib/icons";
 import CalendarView from "../components/CalendarView";
@@ -11,10 +12,12 @@ import {
   createClassRequest,
   deleteClassRequest,
   listClassesRequest,
+  listClassEnrollmentsRequest,
   registerClassRequest,
   dropClassRequest,
   getUserEnrollmentsRequest,
   updateClassRequest,
+  type ClassEnrollmentItem,
   type BackendClass,
   type ClassUpsertRequest,
 } from "../lib/api";
@@ -73,6 +76,107 @@ const fromMinutes = (totalMinutes: number) => {
   const hour = Math.floor(normalized / 60);
   const minute = normalized % 60;
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+};
+
+const WEEKDAY_TO_INDEX: Record<string, number> = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+};
+
+const formatDuration = (totalMinutes: number) => {
+  if (!Number.isFinite(totalMinutes) || totalMinutes < 0) {
+    return "";
+  }
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = Math.floor(totalMinutes % 60);
+  if (hours === 0) {
+    return `${minutes}m`;
+  }
+  if (minutes === 0) {
+    return `${hours}h`;
+  }
+  return `${hours}h ${minutes}m`;
+};
+
+const parseTimeParts = (time: string) => {
+  const [hourText = "0", minuteText = "0"] = (time || "").split(":");
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+    return null;
+  }
+  return { hour, minute };
+};
+
+const getNextSessionStart = (course: CourseCardItem) => {
+  const dayKey = normalizeWeekday(course.day).toLowerCase();
+  const dayIndex = WEEKDAY_TO_INDEX[dayKey];
+  const parsedTime = parseTimeParts(course.startTimeRaw || "");
+
+  if (typeof dayIndex !== "number" || !parsedTime) {
+    return null;
+  }
+
+  const now = new Date();
+  const nextStart = new Date(now);
+  nextStart.setHours(parsedTime.hour, parsedTime.minute, 0, 0);
+
+  const daysAhead = (dayIndex - nextStart.getDay() + 7) % 7;
+  nextStart.setDate(nextStart.getDate() + daysAhead);
+
+  if (daysAhead === 0 && now.getTime() > nextStart.getTime()) {
+    nextStart.setDate(nextStart.getDate() + 7);
+  }
+
+  return nextStart;
+};
+
+const getEnrollmentWindow = (course: CourseCardItem, now = new Date()) => {
+  const nextStart = getNextSessionStart(course);
+  if (!nextStart) {
+    return {
+      canBook: true,
+      message: "",
+      countdown: "",
+      opensAt: null as Date | null,
+    };
+  }
+
+  const opensAt = new Date(nextStart.getTime() - 25 * 60 * 60 * 1000);
+
+  if (now.getTime() >= nextStart.getTime()) {
+    return {
+      canBook: false,
+      message: "Registration is closed for the current session.",
+      countdown: "",
+      opensAt,
+    };
+  }
+
+  if (now.getTime() < opensAt.getTime()) {
+    const diffMs = opensAt.getTime() - now.getTime();
+    const hours = Math.floor(diffMs / (60 * 60 * 1000));
+    const minutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000));
+    return {
+      canBook: false,
+      message: `Enrollment opens in ${hours}h ${minutes}m.`,
+      countdown: formatDuration(Math.max(0, diffMs / 60000)),
+      opensAt,
+    };
+  }
+
+  return {
+    canBook: true,
+    message: "",
+    countdown: "",
+    opensAt,
+  };
 };
 
 type ClassFormState = {
@@ -147,6 +251,10 @@ const Browse = () => {
     null,
   );
   const [classDeleting, setClassDeleting] = useState(false);
+  const [rosterCourse, setRosterCourse] = useState<CourseCardItem | null>(null);
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterItems, setRosterItems] = useState<ClassEnrollmentItem[]>([]);
+  const [clockTick, setClockTick] = useState(Date.now());
 
   const canManageClasses = role === "manager" || role === "supermanager";
 
@@ -186,6 +294,14 @@ const Browse = () => {
     void loadEnrollments();
   }, [loadEnrollments]);
 
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setClockTick(Date.now());
+    }, 30000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
   const handleCourseSelect = (course: CourseCardItem) => {
     setSelectedCourse(course);
     setIsModalOpen(true);
@@ -204,6 +320,12 @@ const Browse = () => {
 
     if (enrolledCourseIds.includes(course.id)) {
       toast("You are already enrolled in this class.", { icon: "ℹ️" });
+      return;
+    }
+
+    const windowState = getEnrollmentWindow(course, new Date(clockTick));
+    if (!windowState.canBook) {
+      toast.error(windowState.message || "Enrollment is not open yet.");
       return;
     }
 
@@ -262,6 +384,30 @@ const Browse = () => {
     }
   };
 
+  const handleViewRoster = async (course: CourseCardItem) => {
+    if (!token) {
+      toast.error("Please login first.");
+      navigate("/login");
+      return;
+    }
+
+    setRosterCourse(course);
+    setRosterLoading(true);
+    setRosterItems([]);
+
+    try {
+      const data = await listClassEnrollmentsRequest(token, course.id);
+      setRosterItems(data.enrollments || []);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to load roster";
+      toast.error(message);
+      setRosterItems([]);
+    } finally {
+      setRosterLoading(false);
+    }
+  };
+
   const filteredCourses = useMemo(() => {
     return courses.filter(
       (course) =>
@@ -274,6 +420,8 @@ const Browse = () => {
 
   const isEnrolledCourse = (courseId: number) =>
     enrolledCourseIds.includes(courseId);
+
+  const currentPreviewTime = new Date(clockTick);
 
   const openCreateClassModal = () => {
     if (!canManageClasses) {
@@ -551,112 +699,127 @@ const Browse = () => {
       ) : activeView === "grid" ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCourses.length > 0 ? (
-            filteredCourses.map((course) => (
-              <Card
-                key={course.id}
-                className="p-0 overflow-hidden hover:-translate-y-1 transition-transform duration-300 cursor-pointer group"
-                onClick={() => handleCourseSelect(course)}
-              >
-                <div className="h-32 bg-linear-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-6xl relative">
-                  {course.image}
-                  <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-indigo-600 shadow-sm">
-                    {course.type}
+            filteredCourses.map((course) => {
+              const windowState = getEnrollmentWindow(
+                course,
+                currentPreviewTime,
+              );
+              return (
+                <Card
+                  key={course.id}
+                  className="p-0 overflow-hidden hover:-translate-y-1 transition-transform duration-300 cursor-pointer group"
+                  onClick={() => handleCourseSelect(course)}
+                >
+                  <div className="h-32 bg-linear-to-br from-indigo-100 to-purple-100 flex items-center justify-center text-6xl relative">
+                    {course.image}
+                    <div className="absolute top-4 right-4 bg-white/90 backdrop-blur px-3 py-1 rounded-full text-xs font-bold text-indigo-600 shadow-sm">
+                      {course.type}
+                    </div>
                   </div>
-                </div>
-                <div className="p-6">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-xl font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate min-w-0">
-                      {course.title}
-                    </h3>
-                    {isEnrolledCourse(course.id) && (
-                      <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold shrink-0">
-                        <Icons.Check /> Enrolled
+                  <div className="p-6">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="text-xl font-bold text-slate-800 group-hover:text-indigo-600 transition-colors truncate min-w-0">
+                        {course.title}
+                      </h3>
+                      {isEnrolledCourse(course.id) && (
+                        <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-semibold shrink-0">
+                          <Icons.Check /> Enrolled
+                        </div>
+                      )}
+                    </div>
+                    {course.code && (
+                      <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500 mt-1">
+                        {course.code}
+                      </p>
+                    )}
+                    <div className="flex items-center gap-4 text-sm text-slate-500 mt-2 mb-6">
+                      <div className="flex items-center gap-1">
+                        <Icons.User /> {course.instructor}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Icons.Clock /> {course.day}, {course.time}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      {course.spots === 0 ? (
+                        <span className="text-amber-600 text-sm font-semibold flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-amber-500"></span>{" "}
+                          Waitlist Only
+                        </span>
+                      ) : (
+                        <span
+                          className={`text-sm font-semibold flex items-center gap-1 ${
+                            course.spots < 5
+                              ? "text-rose-500"
+                              : "text-emerald-600"
+                          }`}
+                        >
+                          <span
+                            className={`w-2 h-2 rounded-full ${
+                              course.spots < 5
+                                ? "bg-rose-500"
+                                : "bg-emerald-500"
+                            }`}
+                          ></span>
+                          {course.spots} spots left
+                        </span>
+                      )}
+                      <Button
+                        variant={
+                          isEnrolledCourse(course.id)
+                            ? "danger"
+                            : course.spots === 0 || !windowState.canBook
+                              ? "outline"
+                              : "primary"
+                        }
+                        className="text-sm px-6"
+                        disabled={
+                          !isEnrolledCourse(course.id) && !windowState.canBook
+                        }
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          await handleQuickActionOnCard(course);
+                        }}
+                      >
+                        {isEnrolledCourse(course.id)
+                          ? "Drop"
+                          : !windowState.canBook
+                            ? windowState.countdown
+                              ? `Opens in ${windowState.countdown}`
+                              : "Locked"
+                            : course.spots === 0
+                              ? "Join Waitlist"
+                              : "Book"}
+                      </Button>
+                    </div>
+                    {canManageClasses && (
+                      <div className="flex items-center justify-start gap-2 mt-3 pt-3 border-t border-slate-100">
+                        <Button
+                          variant="ghost"
+                          className="text-xs px-4 py-1.5 rounded-full bg-indigo-50! text-indigo-700! border border-indigo-200! hover:bg-indigo-100!"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEditClassModal(course);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="danger"
+                          className="text-xs px-4 py-1.5 rounded-full border border-red-200"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setClassToDelete(course);
+                          }}
+                        >
+                          Delete
+                        </Button>
                       </div>
                     )}
                   </div>
-                  {course.code && (
-                    <p className="text-xs font-semibold uppercase tracking-wide text-indigo-500 mt-1">
-                      {course.code}
-                    </p>
-                  )}
-                  <div className="flex items-center gap-4 text-sm text-slate-500 mt-2 mb-6">
-                    <div className="flex items-center gap-1">
-                      <Icons.User /> {course.instructor}
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Icons.Clock /> {course.day}, {course.time}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    {course.spots === 0 ? (
-                      <span className="text-amber-600 text-sm font-semibold flex items-center gap-1">
-                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>{" "}
-                        Waitlist Only
-                      </span>
-                    ) : (
-                      <span
-                        className={`text-sm font-semibold flex items-center gap-1 ${
-                          course.spots < 5
-                            ? "text-rose-500"
-                            : "text-emerald-600"
-                        }`}
-                      >
-                        <span
-                          className={`w-2 h-2 rounded-full ${
-                            course.spots < 5 ? "bg-rose-500" : "bg-emerald-500"
-                          }`}
-                        ></span>
-                        {course.spots} spots left
-                      </span>
-                    )}
-                    <Button
-                      variant={
-                        isEnrolledCourse(course.id)
-                          ? "danger"
-                          : course.spots === 0
-                            ? "outline"
-                            : "primary"
-                      }
-                      className="text-sm px-6"
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        await handleQuickActionOnCard(course);
-                      }}
-                    >
-                      {isEnrolledCourse(course.id)
-                        ? "Drop"
-                        : course.spots === 0
-                          ? "Join Waitlist"
-                          : "Book"}
-                    </Button>
-                  </div>
-                  {canManageClasses && (
-                    <div className="flex items-center justify-start gap-2 mt-3 pt-3 border-t border-slate-100">
-                      <Button
-                        variant="ghost"
-                        className="text-xs px-4 py-1.5 rounded-full bg-indigo-50! text-indigo-700! border border-indigo-200! hover:bg-indigo-100!"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openEditClassModal(course);
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="danger"
-                        className="text-xs px-4 py-1.5 rounded-full border border-red-200"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setClassToDelete(course);
-                        }}
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </Card>
-            ))
+                </Card>
+              );
+            })
           ) : (
             <div className="col-span-full py-20 text-center">
               <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-100 text-slate-400 mb-4">
@@ -688,9 +851,22 @@ const Browse = () => {
         onClose={() => setIsModalOpen(false)}
         onBook={handleBookCourse}
         onDrop={requestDropCourse}
+        onViewRoster={canManageClasses ? handleViewRoster : undefined}
         booking={booking}
         dropping={dropping}
         enrolled={selectedCourse ? isEnrolledCourse(selectedCourse.id) : false}
+        bookingLocked={
+          selectedCourse
+            ? !isEnrolledCourse(selectedCourse.id) &&
+              !getEnrollmentWindow(selectedCourse, currentPreviewTime).canBook
+            : false
+        }
+        bookingHint={
+          selectedCourse && !isEnrolledCourse(selectedCourse.id)
+            ? getEnrollmentWindow(selectedCourse, currentPreviewTime).message ||
+              undefined
+            : undefined
+        }
       />
 
       <Modal
@@ -927,6 +1103,72 @@ const Browse = () => {
             </div>
           </Card>
         </div>
+      )}
+
+      {rosterCourse && (
+        <Modal
+          isOpen={Boolean(rosterCourse)}
+          onClose={() => {
+            setRosterCourse(null);
+            setRosterItems([]);
+          }}
+          panelClassName="max-w-3xl"
+        >
+          <div className="p-6 sm:p-8">
+            <div className="flex items-start justify-between gap-4 mb-6">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-900">
+                  Session Roster
+                </h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  {rosterCourse.title} • {rosterCourse.day}, {rosterCourse.time}
+                </p>
+              </div>
+              <Badge className="bg-slate-900 text-white">
+                {rosterItems.length} students
+              </Badge>
+            </div>
+
+            {rosterLoading ? (
+              <Card className="p-6 text-center text-slate-500 bg-transparent border-dashed border-2">
+                Loading roster...
+              </Card>
+            ) : rosterItems.length > 0 ? (
+              <div className="space-y-3 max-h-[32rem] overflow-y-auto pr-1">
+                {rosterItems.map((item) => (
+                  <Card
+                    key={item.id}
+                    className="p-4 flex items-center justify-between"
+                  >
+                    <div>
+                      <p className="font-semibold text-slate-800">
+                        {item.user?.name || `User ${item.user_id}`}
+                      </p>
+                      <p className="text-sm text-slate-500">
+                        {item.user?.email || "No email available"}
+                      </p>
+                    </div>
+                    <Badge
+                      className={
+                        item.status === "attended" || item.status === "present"
+                          ? "bg-emerald-100 text-emerald-700"
+                          : item.status === "missed" || item.status === "absent"
+                            ? "bg-rose-100 text-rose-700"
+                            : "bg-slate-100 text-slate-500"
+                      }
+                    >
+                      {item.status}
+                    </Badge>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <Card className="p-6 text-center text-slate-500 bg-transparent border-dashed border-2">
+                No enrolled students were returned for this session.
+              </Card>
+            )}
+          </div>
+        </Modal>
       )}
     </div>
   );
