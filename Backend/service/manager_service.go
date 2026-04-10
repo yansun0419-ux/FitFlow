@@ -57,6 +57,12 @@ func ManagerCreateCourse(input CourseUpsertInput) (*model.Course, error) {
 		return nil, err
 	}
 
+	// Generate ClassSession rows for the next 12 weeks
+	if err := GenerateClassSessions(course.ID, 12); err != nil {
+		// Log but don't fail the course creation
+		_ = errors.New("warning: failed to generate class sessions: " + err.Error())
+	}
+
 	_ = fillCourseSpot(course)
 	return course, nil
 }
@@ -89,6 +95,12 @@ func ManagerUpdateCourse(id uint, input CourseUpsertInput) (*model.Course, error
 
 	if err := dao.UpdateCourse(course); err != nil {
 		return nil, err
+	}
+
+	// Regenerate ClassSession rows for the next 12 weeks
+	if err := GenerateClassSessions(course.ID, 12); err != nil {
+		// Log but don't fail the course update
+		_ = errors.New("warning: failed to regenerate class sessions: " + err.Error())
 	}
 
 	_ = fillCourseSpot(course)

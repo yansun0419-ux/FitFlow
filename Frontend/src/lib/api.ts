@@ -47,7 +47,7 @@ async function getJson<TResponse>(path: string): Promise<TResponse> {
 
 async function authRequest<TResponse>(
   path: string,
-  method: "GET" | "PUT" | "POST" | "DELETE",
+  method: "GET" | "PUT" | "POST" | "DELETE" | "PATCH",
   token: string,
   body?: unknown,
 ): Promise<TResponse> {
@@ -97,12 +97,15 @@ export const registerManagerRequest = (
 
 export const roleIdToFrontendRole = (
   roleId: number,
-): "student" | "manager" | "supermanager" => {
+): "student" | "manager" | "supermanager" | "instructor" => {
   if (roleId === 2) {
     return "supermanager";
   }
   if (roleId === 3) {
     return "manager";
+  }
+  if (roleId === 4) {
+    return "instructor";
   }
   return "student";
 };
@@ -258,6 +261,79 @@ export const updateClassRequest = (
 
 export const deleteClassRequest = (token: string, classId: number) =>
   authRequest<{ message: string }>(`/classes/${classId}`, "DELETE", token);
+
+export type ClassEnrollmentItem = {
+  id: number;
+  user_id: number;
+  course_id: number;
+  status: string;
+  enroll_time: string;
+  user?: {
+    id: number;
+    name: string;
+    email: string;
+  };
+};
+
+export type ClassEnrollmentsResponse = {
+  enrollments: ClassEnrollmentItem[];
+};
+
+export const listClassEnrollmentsRequest = (token: string, classId: number) =>
+  authRequest<ClassEnrollmentsResponse>(
+    `/classes/${classId}/enrollments`,
+    "GET",
+    token,
+  );
+
+export type InstructorCourseSummary = {
+  id: number;
+  name: string;
+  course_code: string;
+  weekday: string;
+  start_time: string;
+  end_time: string;
+  capacity: number;
+  spot: number;
+  category: string;
+  status?: string;
+};
+
+export type InstructorCoursesResponse = {
+  courses: InstructorCourseSummary[];
+};
+
+export const listInstructorCoursesRequest = (token: string) =>
+  authRequest<InstructorCoursesResponse>("/instructor/courses", "GET", token);
+
+export type InstructorRosterItem = ClassEnrollmentItem;
+
+export type InstructorCourseEnrollmentsResponse = {
+  enrollments: InstructorRosterItem[];
+};
+
+export const listInstructorCourseEnrollmentsRequest = (
+  token: string,
+  courseId: number,
+) =>
+  authRequest<InstructorCourseEnrollmentsResponse>(
+    `/instructor/courses/${courseId}/enrollments`,
+    "GET",
+    token,
+  );
+
+export const updateInstructorEnrollmentStatusRequest = (
+  token: string,
+  courseId: number,
+  userId: number,
+  status: "present" | "absent" | "attended" | "missed" | "enrolled",
+) =>
+  authRequest<{ message: string }>(
+    `/instructor/courses/${courseId}/enrollments`,
+    "PATCH",
+    token,
+    { user_id: userId, status },
+  );
 
 export type UserAnalyticsResponse = {
   analytics: {

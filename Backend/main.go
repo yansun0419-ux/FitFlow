@@ -65,6 +65,7 @@ func seedRoles() {
 		{ID: 1, Name: "Student"},
 		{ID: 2, Name: "SuperManager"},
 		{ID: 3, Name: "Manager"},
+		{ID: 4, Name: "Instructor"},
 	}
 
 	for _, r := range roles {

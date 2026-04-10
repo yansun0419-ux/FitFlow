@@ -86,12 +86,19 @@ func seedRouteUser(t *testing.T, roleID uint, password string) model.User {
 
 func seedRouteCourse(t *testing.T, name string, capacity int, category string) model.Course {
 	t.Helper()
+	start := time.Now().Add(2 * time.Hour)
+	end := start.Add(1 * time.Hour)
+	return seedRouteCourseWithSchedule(t, name, capacity, category, start.Format("15:04"), end.Format("15:04"), start.Weekday().String())
+}
 
-	startTime, err := model.ParseTimeOnly("09:00")
+func seedRouteCourseWithSchedule(t *testing.T, name string, capacity int, category string, start string, end string, weekday string) model.Course {
+	t.Helper()
+
+	startTime, err := model.ParseTimeOnly(start)
 	if err != nil {
 		t.Fatalf("failed to parse start time: %v", err)
 	}
-	endTime, err := model.ParseTimeOnly("10:00")
+	endTime, err := model.ParseTimeOnly(end)
 	if err != nil {
 		t.Fatalf("failed to parse end time: %v", err)
 	}
@@ -103,20 +110,48 @@ func seedRouteCourse(t *testing.T, name string, capacity int, category string) m
 		Category:   category,
 		StartTime:  startTime,
 		EndTime:    endTime,
+		Weekday:    weekday,
 	}
 	if err := db.DB.Create(&course).Error; err != nil {
 		t.Fatalf("failed to seed course: %v", err)
 	}
 
+	seedRouteCourseSession(t, course)
+
 	return course
+}
+
+func seedRouteCourseSession(t *testing.T, course model.Course) model.ClassSession {
+	t.Helper()
+
+	sessionDate := time.Now().AddDate(0, 0, 1)
+	session := model.ClassSession{
+		CourseID:    course.ID,
+		SessionDate: sessionDate.Format("2006-01-02"),
+		StartAt:     time.Date(sessionDate.Year(), sessionDate.Month(), sessionDate.Day(), course.StartTime.Hour(), course.StartTime.Minute(), 0, 0, sessionDate.Location()),
+		EndAt:       time.Date(sessionDate.Year(), sessionDate.Month(), sessionDate.Day(), course.EndTime.Hour(), course.EndTime.Minute(), 0, 0, sessionDate.Location()),
+		Status:      "scheduled",
+		Capacity:    course.Capacity,
+	}
+	if err := db.DB.Create(&session).Error; err != nil {
+		t.Fatalf("failed to seed class session: %v", err)
+	}
+
+	return session
 }
 
 func seedRouteEnrollmentAt(t *testing.T, userID uint, courseID uint, status string, enrollTime time.Time) model.Enrollment {
 	t.Helper()
 
+	var session model.ClassSession
+	if err := db.DB.Where("course_id = ? AND status = ?", courseID, "scheduled").Order("session_date ASC").First(&session).Error; err != nil {
+		t.Fatalf("failed to find scheduled session: %v", err)
+	}
+
 	enrollment := model.Enrollment{
 		UserID:     userID,
 		CourseID:   courseID,
+		SessionID:  &session.ID,
 		Status:     status,
 		EnrollTime: enrollTime,
 	}
@@ -193,7 +228,7 @@ func TestRegisterClassEndpoint_Conflict(t *testing.T) {
 	seedRouteRole(t, 1, "Student")
 	user := seedRouteUser(t, 1, "secret123")
 	course := seedRouteCourse(t, "Spin", 3, "Cardio")
-	seedRouteEnrollmentAt(t, user.ID, course.ID, "registered", time.Now())
+	seedRouteEnrollmentAt(t, user.ID, course.ID, model.EnrollmentStatusEnrolled, time.Now())
 	token := issueRouteToken(t, user.Email, "secret123")
 	router := routes.SetupRouter()
 
@@ -213,12 +248,40 @@ func TestRegisterClassEndpoint_Conflict(t *testing.T) {
 	}
 }
 
+func TestRegisterClassEndpoint_ConflictOnScheduleOverlap(t *testing.T) {
+	setupRouteTestDB(t)
+	seedRouteRole(t, 1, "Student")
+	user := seedRouteUser(t, 1, "secret123")
+	base := time.Now().Add(2 * time.Hour)
+	weekday := base.Weekday().String()
+	existingCourse := seedRouteCourseWithSchedule(t, "Morning Yoga", 3, "Wellness", base.Format("15:04"), base.Add(1*time.Hour).Format("15:04"), weekday)
+	targetCourse := seedRouteCourseWithSchedule(t, "Strength Flow", 3, "Strength", base.Add(30*time.Minute).Format("15:04"), base.Add(90*time.Minute).Format("15:04"), weekday[:3])
+	seedRouteEnrollmentAt(t, user.ID, existingCourse.ID, model.EnrollmentStatusEnrolled, time.Now())
+	token := issueRouteToken(t, user.Email, "secret123")
+	router := routes.SetupRouter()
+
+	recorder := performJSONRequest(t, router, http.MethodPost, "/classes/register", token, map[string]uint{"course_id": targetCourse.ID})
+	if recorder.Code != http.StatusConflict {
+		t.Fatalf("expected status 409, got %d with body %s", recorder.Code, recorder.Body.String())
+	}
+
+	var response struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+	if response.Error != "class schedule overlaps with an existing enrolled class" {
+		t.Fatalf("unexpected error: %s", response.Error)
+	}
+}
+
 func TestDropClassEndpoint_OK(t *testing.T) {
 	setupRouteTestDB(t)
 	seedRouteRole(t, 1, "Student")
 	user := seedRouteUser(t, 1, "secret123")
 	course := seedRouteCourse(t, "HIIT", 4, "Cardio")
-	seedRouteEnrollmentAt(t, user.ID, course.ID, "registered", time.Now())
+	seedRouteEnrollmentAt(t, user.ID, course.ID, model.EnrollmentStatusEnrolled, time.Now())
 	token := issueRouteToken(t, user.Email, "secret123")
 	router := routes.SetupRouter()
 
@@ -268,7 +331,7 @@ func TestListClassesEndpoint_OK(t *testing.T) {
 	user := seedRouteUser(t, 1, "secret123")
 	courseA := seedRouteCourse(t, "Course A", 3, "Cardio")
 	courseB := seedRouteCourse(t, "Course B", 2, "Strength")
-	seedRouteEnrollmentAt(t, user.ID, courseA.ID, "registered", time.Now())
+	seedRouteEnrollmentAt(t, user.ID, courseA.ID, model.EnrollmentStatusAttended, time.Now())
 	router := routes.SetupRouter()
 
 	recorder := performJSONRequest(t, router, http.MethodGet, "/classes?page=1", "", nil)
@@ -325,8 +388,8 @@ func TestGetUserAnalyticsEndpoint_OK(t *testing.T) {
 		t.Fatalf("failed to set courseB duration: %v", err)
 	}
 	now := time.Now()
-	seedRouteEnrollmentAt(t, user.ID, courseA.ID, "registered", now.AddDate(0, 0, -1))
-	seedRouteEnrollmentAt(t, user.ID, courseB.ID, "registered", now.AddDate(0, 0, -2))
+	seedRouteEnrollmentAt(t, user.ID, courseA.ID, model.EnrollmentStatusAttended, now.AddDate(0, 0, -1))
+	seedRouteEnrollmentAt(t, user.ID, courseB.ID, model.EnrollmentStatusMissed, now.AddDate(0, 0, -2))
 	token := issueRouteToken(t, user.Email, "secret123")
 	router := routes.SetupRouter()
 
@@ -346,20 +409,20 @@ func TestGetUserAnalyticsEndpoint_OK(t *testing.T) {
 	if response.Analytics.UserID != user.ID {
 		t.Fatalf("expected user id %d, got %d", user.ID, response.Analytics.UserID)
 	}
-	if response.Analytics.TotalClasses != 2 {
-		t.Fatalf("expected total classes 2, got %d", response.Analytics.TotalClasses)
+	if response.Analytics.TotalClasses != 1 {
+		t.Fatalf("expected total classes 1, got %d", response.Analytics.TotalClasses)
 	}
-	if response.Analytics.TotalTime != 75 {
-		t.Fatalf("expected total time 75, got %d", response.Analytics.TotalTime)
+	if response.Analytics.TotalTime != 45 {
+		t.Fatalf("expected total time 45, got %d", response.Analytics.TotalTime)
 	}
-	if response.Analytics.ActiveDays != 2 {
-		t.Fatalf("expected active days 2, got %d", response.Analytics.ActiveDays)
+	if response.Analytics.ActiveDays != 1 {
+		t.Fatalf("expected active days 1, got %d", response.Analytics.ActiveDays)
 	}
 	if response.Analytics.Range != "7d" {
 		t.Fatalf("expected range 7d, got %s", response.Analytics.Range)
 	}
-	if len(response.Analytics.Categories) != 2 {
-		t.Fatalf("expected 2 categories, got %d", len(response.Analytics.Categories))
+	if len(response.Analytics.Categories) != 1 {
+		t.Fatalf("expected 1 category, got %d", len(response.Analytics.Categories))
 	}
 }
 

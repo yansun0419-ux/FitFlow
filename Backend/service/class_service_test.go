@@ -18,23 +18,11 @@ var testSeq uint64
 func setupClassServiceTestDB(t *testing.T) {
 	t.Helper()
 
-	// 关键点：
-	// 1) 不用 cache=shared，避免跨连接共享导致的锁/阻塞
-	// 2) 加上 _busy_timeout，避免 SQLite 等锁时无限卡住
-	dsn := fmt.Sprintf("file:test_%d?mode=memory&_busy_timeout=5000", time.Now().UnixNano())
-
+	dsn := fmt.Sprintf("file:test_%d?mode=memory&cache=shared", time.Now().UnixNano())
 	testDB, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("failed to open test database: %v", err)
 	}
-
-	// 限制为单连接，进一步避免并发锁问题
-	sqlDB, err := testDB.DB()
-	if err != nil {
-		t.Fatalf("failed to get sql DB: %v", err)
-	}
-	sqlDB.SetMaxOpenConns(1)
-	sqlDB.SetMaxIdleConns(1)
 
 	if err := testDB.Exec("PRAGMA foreign_keys = ON;").Error; err != nil {
 		t.Fatalf("failed to enable foreign keys: %v", err)
@@ -78,25 +66,90 @@ func seedRoleAndUser(t *testing.T, roleID uint) model.User {
 func seedCourse(t *testing.T, name string, capacity int, category string) model.Course {
 	t.Helper()
 
+	now := time.Now()
+	start := now.Add(2 * time.Hour)
+	end := start.Add(1 * time.Hour)
+
+	startTime, err := model.ParseTimeOnly(start.Format("15:04"))
+	if err != nil {
+		t.Fatalf("failed to parse start time: %v", err)
+	}
+	endTime, err := model.ParseTimeOnly(end.Format("15:04"))
+	if err != nil {
+		t.Fatalf("failed to parse end time: %v", err)
+	}
+
 	course := model.Course{
 		CourseName: name,
 		CourseCode: fmt.Sprintf("C-%d-%d", time.Now().UnixNano(), atomic.AddUint64(&testSeq, 1)),
 		Capacity:   capacity,
 		Category:   category,
+		Weekday:    start.Weekday().String(),
+		StartTime:  startTime,
+		EndTime:    endTime,
 	}
 	if err := db.DB.Create(&course).Error; err != nil {
 		t.Fatalf("failed to seed course: %v", err)
 	}
 
+	seedCourseSession(t, course)
+
 	return course
+}
+
+func seedCourseSession(t *testing.T, course model.Course) model.ClassSession {
+	t.Helper()
+
+	sessionDate := time.Now().AddDate(0, 0, 1)
+	session := model.ClassSession{
+		CourseID:    course.ID,
+		SessionDate: sessionDate.Format("2006-01-02"),
+		StartAt:     time.Date(sessionDate.Year(), sessionDate.Month(), sessionDate.Day(), course.StartTime.Hour(), course.StartTime.Minute(), 0, 0, sessionDate.Location()),
+		EndAt:       time.Date(sessionDate.Year(), sessionDate.Month(), sessionDate.Day(), course.EndTime.Hour(), course.EndTime.Minute(), 0, 0, sessionDate.Location()),
+		Status:      "scheduled",
+		Capacity:    course.Capacity,
+	}
+	if err := db.DB.Create(&session).Error; err != nil {
+		t.Fatalf("failed to seed class session: %v", err)
+	}
+
+	return session
+}
+
+func setCourseSchedule(t *testing.T, courseID uint, weekday string, start string, end string) {
+	t.Helper()
+
+	startTime, err := model.ParseTimeOnly(start)
+	if err != nil {
+		t.Fatalf("failed to parse start time: %v", err)
+	}
+
+	endTime, err := model.ParseTimeOnly(end)
+	if err != nil {
+		t.Fatalf("failed to parse end time: %v", err)
+	}
+
+	if err := db.DB.Model(&model.Course{}).Where("id = ?", courseID).Updates(map[string]any{
+		"weekday":    weekday,
+		"start_time": startTime,
+		"end_time":   endTime,
+	}).Error; err != nil {
+		t.Fatalf("failed to set course schedule: %v", err)
+	}
 }
 
 func seedEnrollmentAt(t *testing.T, userID uint, courseID uint, status string, enrollTime time.Time) model.Enrollment {
 	t.Helper()
 
+	var session model.ClassSession
+	if err := db.DB.Where("course_id = ? AND status = ?", courseID, "scheduled").Order("session_date ASC").First(&session).Error; err != nil {
+		t.Fatalf("failed to find scheduled session: %v", err)
+	}
+
 	enrollment := model.Enrollment{
 		UserID:     userID,
 		CourseID:   courseID,
+		SessionID:  &session.ID,
 		Status:     status,
 		EnrollTime: enrollTime,
 	}
@@ -133,8 +186,8 @@ func TestRegisterClass_Success(t *testing.T) {
 		Count(&activities).Error; err != nil {
 		t.Fatalf("failed to verify daily activity: %v", err)
 	}
-	if activities != 1 {
-		t.Fatalf("expected 1 daily activity row, got %d", activities)
+	if activities != 0 {
+		t.Fatalf("expected 0 daily activity rows for enrolled status, got %d", activities)
 	}
 }
 
@@ -165,7 +218,7 @@ func TestRegisterClass_AlreadyExists(t *testing.T) {
 
 	user := seedRoleAndUser(t, 1)
 	course := seedCourse(t, "Spin", 5, "Cardio")
-	seedEnrollmentAt(t, user.ID, course.ID, "registered", time.Now())
+	seedEnrollmentAt(t, user.ID, course.ID, model.EnrollmentStatusEnrolled, time.Now())
 
 	err := RegisterClass(user.ID, course.ID)
 	if err == nil || err.Error() != "enrollment already exists" {
@@ -179,11 +232,31 @@ func TestRegisterClass_ClassFull(t *testing.T) {
 	user1 := seedRoleAndUser(t, 1)
 	user2 := seedRoleAndUser(t, 2)
 	course := seedCourse(t, "Boxing", 1, "Combat")
-	seedEnrollmentAt(t, user1.ID, course.ID, "registered", time.Now())
+	seedEnrollmentAt(t, user1.ID, course.ID, model.EnrollmentStatusEnrolled, time.Now())
 
 	err := RegisterClass(user2.ID, course.ID)
 	if err == nil || err.Error() != "class is full" {
 		t.Fatalf("expected class is full, got: %v", err)
+	}
+}
+
+func TestRegisterClass_ScheduleOverlap(t *testing.T) {
+	setupClassServiceTestDB(t)
+
+	user := seedRoleAndUser(t, 1)
+	existingCourse := seedCourse(t, "Morning Yoga", 5, "Wellness")
+	targetCourse := seedCourse(t, "Strength Flow", 5, "Strength")
+
+	base := time.Now().Add(2 * time.Hour)
+	weekday := base.Weekday().String()
+	setCourseSchedule(t, existingCourse.ID, weekday, base.Format("15:04"), base.Add(1*time.Hour).Format("15:04"))
+	setCourseSchedule(t, targetCourse.ID, weekday[:3], base.Add(30*time.Minute).Format("15:04"), base.Add(90*time.Minute).Format("15:04"))
+
+	seedEnrollmentAt(t, user.ID, existingCourse.ID, model.EnrollmentStatusEnrolled, time.Now())
+
+	err := RegisterClass(user.ID, targetCourse.ID)
+	if err == nil || err.Error() != "class schedule overlaps with an existing enrolled class" {
+		t.Fatalf("expected schedule overlap error, got: %v", err)
 	}
 }
 
@@ -192,7 +265,7 @@ func TestDropClass_Success(t *testing.T) {
 
 	user := seedRoleAndUser(t, 1)
 	course := seedCourse(t, "HIIT", 4, "Cardio")
-	seedEnrollmentAt(t, user.ID, course.ID, "registered", time.Now())
+	seedEnrollmentAt(t, user.ID, course.ID, model.EnrollmentStatusEnrolled, time.Now())
 
 	if err := DropClass(user.ID, course.ID); err != nil {
 		t.Fatalf("expected success, got error: %v", err)
@@ -206,6 +279,16 @@ func TestDropClass_Success(t *testing.T) {
 	}
 	if enrollments != 0 {
 		t.Fatalf("expected 0 enrollments, got %d", enrollments)
+	}
+
+	var activities int64
+	if err := db.DB.Model(&model.UserDailyActivity{}).
+		Where("user_id = ? AND course_id = ?", user.ID, course.ID).
+		Count(&activities).Error; err != nil {
+		t.Fatalf("failed to verify activity deletion: %v", err)
+	}
+	if activities != 0 {
+		t.Fatalf("expected 0 daily activity rows, got %d", activities)
 	}
 }
 
@@ -226,8 +309,8 @@ func TestListClassesPaged_ReturnsSpotAndPagination(t *testing.T) {
 	courseA := seedCourse(t, "Course A", 3, "Cardio")
 	courseB := seedCourse(t, "Course B", 2, "Strength")
 
-	seedEnrollmentAt(t, user1.ID, courseA.ID, "registered", time.Now())
-	seedEnrollmentAt(t, user2.ID, courseA.ID, "registered", time.Now())
+	seedEnrollmentAt(t, user1.ID, courseA.ID, model.EnrollmentStatusEnrolled, time.Now())
+	seedEnrollmentAt(t, user2.ID, courseA.ID, model.EnrollmentStatusAttended, time.Now())
 
 	classes, total, err := ListClassesPaged(1, 10)
 	if err != nil {
@@ -271,29 +354,29 @@ func TestGetUserAnalytics_SuccessWithPercentages(t *testing.T) {
 	}
 
 	now := time.Now()
-	seedEnrollmentAt(t, user.ID, courseCardio1.ID, "registered", now.AddDate(0, 0, -1))
-	seedEnrollmentAt(t, user.ID, courseCardio2.ID, "registered", now.AddDate(0, 0, -2))
-	seedEnrollmentAt(t, user.ID, courseNoCategory.ID, "registered", now.AddDate(0, 0, -3))
+	seedEnrollmentAt(t, user.ID, courseCardio1.ID, model.EnrollmentStatusAttended, now.AddDate(0, 0, -1))
+	seedEnrollmentAt(t, user.ID, courseCardio2.ID, model.EnrollmentStatusAttended, now.AddDate(0, 0, -2))
+	seedEnrollmentAt(t, user.ID, courseNoCategory.ID, model.EnrollmentStatusMissed, now.AddDate(0, 0, -3))
 
 	analytics, err := GetUserAnalytics(user.ID, "7d")
 	if err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}
 
-	if analytics.TotalClasses != 3 {
-		t.Fatalf("expected total classes 3, got %d", analytics.TotalClasses)
+	if analytics.TotalClasses != 2 {
+		t.Fatalf("expected total classes 2, got %d", analytics.TotalClasses)
 	}
-	if analytics.TotalTime != 135 {
-		t.Fatalf("expected total time 135, got %d", analytics.TotalTime)
+	if analytics.TotalTime != 105 {
+		t.Fatalf("expected total time 105, got %d", analytics.TotalTime)
 	}
-	if analytics.ActiveDays != 3 {
-		t.Fatalf("expected active days 3, got %d", analytics.ActiveDays)
+	if analytics.ActiveDays != 2 {
+		t.Fatalf("expected active days 2, got %d", analytics.ActiveDays)
 	}
 	if analytics.Range != "7d" {
 		t.Fatalf("expected range 7d, got %s", analytics.Range)
 	}
-	if len(analytics.Categories) != 2 {
-		t.Fatalf("expected 2 categories, got %d", len(analytics.Categories))
+	if len(analytics.Categories) != 1 {
+		t.Fatalf("expected 1 category, got %d", len(analytics.Categories))
 	}
 
 	categoryPct := map[string]float64{}
@@ -306,17 +389,11 @@ func TestGetUserAnalytics_SuccessWithPercentages(t *testing.T) {
 	if categoryClasses["Cardio"] != 2 {
 		t.Fatalf("expected Cardio classes 2, got %d", categoryClasses["Cardio"])
 	}
-	if categoryPct["Cardio"] != 66.67 {
-		t.Fatalf("expected Cardio percentage 66.67, got %.2f", categoryPct["Cardio"])
+	if categoryPct["Cardio"] != 100 {
+		t.Fatalf("expected Cardio percentage 100, got %.2f", categoryPct["Cardio"])
 	}
-	if categoryClasses["Uncategorized"] != 1 {
-		t.Fatalf("expected Uncategorized classes 1, got %d", categoryClasses["Uncategorized"])
-	}
-	if categoryPct["Uncategorized"] != 33.33 {
-		t.Fatalf("expected Uncategorized percentage 33.33, got %.2f", categoryPct["Uncategorized"])
-	}
-	if len(analytics.Daily) != 3 {
-		t.Fatalf("expected 3 daily summary rows, got %d", len(analytics.Daily))
+	if len(analytics.Daily) != 2 {
+		t.Fatalf("expected 2 daily summary rows, got %d", len(analytics.Daily))
 	}
 }
 

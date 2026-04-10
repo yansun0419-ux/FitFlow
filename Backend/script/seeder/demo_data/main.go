@@ -20,6 +20,7 @@ func main() {
 		{tableName: model.Course{}.TableName(), model: &model.Course{}},
 		{tableName: model.Enrollment{}.TableName(), model: &model.Enrollment{}},
 		{tableName: model.UserDailyActivity{}.TableName(), model: &model.UserDailyActivity{}},
+		{tableName: model.ClassSession{}.TableName(), model: &model.ClassSession{}},
 	}
 
 	for _, item := range ensure {
@@ -34,5 +35,7 @@ func main() {
 	seedRoles()
 	seedUsers(3, 8, 25)
 	seedCourses(12)
+	seedClassSessions()
 	seedEnrollments(420)
+	backfillEnrollmentSessionIDs()
 }

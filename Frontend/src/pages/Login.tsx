@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
+import Badge from "../components/ui/Badge";
 import Input from "../components/ui/Input";
 import { Icons } from "../lib/icons";
 import { useAuthStore } from "../store/authStore";
@@ -63,13 +64,23 @@ const Login = () => {
 
       login(data.token, frontendRole, userId);
       toast.success("Welcome back! Successfully logged in.");
-      navigate("/");
+
+      if (frontendRole === "instructor") {
+        navigate("/instructor/dashboard");
+      } else {
+        navigate("/");
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Login failed";
       toast.error(message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const openInstructorDemo = (path: string) => {
+    sessionStorage.setItem("instructor_preview", "true");
+    navigate(path);
   };
 
   return (
@@ -154,6 +165,41 @@ const Login = () => {
             {loading ? "Signing In..." : "Sign In"}
           </Button>
         </div>
+
+        <Card className="mt-6 p-4 border-dashed border-indigo-200 bg-indigo-50/60">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <Badge className="bg-indigo-100 text-indigo-700 mb-2">
+                Demo Access
+              </Badge>
+              <h2 className="text-base font-bold text-slate-800">
+                Instructor presentation mode
+              </h2>
+              <p className="text-sm text-slate-600 mt-1">
+                Use this when the backend is unavailable. It opens the two
+                instructor pages with mock data.
+              </p>
+            </div>
+            <Icons.Calendar className="w-6 h-6 text-indigo-500 shrink-0" />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => openInstructorDemo("/instructor/dashboard")}
+              className="w-full"
+            >
+              Open Instructor Dashboard
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => openInstructorDemo("/instructor/profile")}
+              className="w-full"
+            >
+              Open Instructor Profile
+            </Button>
+          </div>
+        </Card>
 
         <div className="mt-8 text-center text-sm text-slate-500">
           <button
