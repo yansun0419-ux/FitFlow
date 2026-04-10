@@ -205,10 +205,6 @@ const InstructorDashboard = () => {
                 <Badge className="bg-indigo-100 text-indigo-700 mb-2">
                   Demo Mode
                 </Badge>
-                <p className="text-sm text-slate-700 font-medium">
-                  This instructor dashboard uses mock roster data so you can
-                  demo attendance and walk-in flows without backend login.
-                </p>
               </div>
               <p className="text-xs text-slate-500">
                 Mark Present, set No-show, then submit attendance.
