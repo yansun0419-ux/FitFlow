@@ -1,4 +1,4 @@
-### Sprint 1 Report: FitFlow Team
+### Sprint 3 Report: FitFlow Team
 **Team Members**:  
 
 Frontend: Forrest Yan Sun, Ila Adhikari  
