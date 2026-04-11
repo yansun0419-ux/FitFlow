@@ -1,287 +1,162 @@
-# ✅ **1) Student Registers for a Course**
-**User Story**:  
-As a student,  
-I want to register for a course within the registration window,  
-so that I can participate in the class.
+### Sprint 1 Report: FitFlow Team
+**Team Members**:  
 
-**Endpoint**: `POST /classes/register`  
-**Functionality**: The student registers for a course, **with status written as `enrolled`** (replaces the original `registered`).
+Frontend: Forrest Yan Sun, Ila Adhikari  
+Backend: Qing Li, Yingzhu Chen  
 
-**Request Body (JSON)**:
-```json
-{
-  "course_id": 7
-}
-```
+**Project Links**:  
 
-[FE]:
-- Create a registration form for students to input the `course_id`.
-- Call the API with the JSON payload and handle the response (e.g., display success or failure messages).
-- Add a "Register Now" button for students on the course detail page.
-
-[BE]:
-- Validate whether the `course_id` exists and ensure the course is open for registration.
-- Check if the user meets registration criteria (e.g., user exists, no time conflicts).
-- Return appropriate status codes and messages for success or failure.
+🔗 GitHub Repository: https://github.com/Ilachan/FitFlow  
+📺 Frontend Demo Video: 
+📺 Backend Demo Video: 
 
 ---
 
-# ✅ **2) Course Time Conflict Detection**
-**User Story**:  
-As a student,  
-when I register for a course,  
-I want the system to detect if the course timing overlaps with my existing schedule,  
-so that I can avoid conflicts.
+### User Stories  
 
-**Added Logic**:
-- Added weekday normalization and time range overlap checks to prevent enrollment with conflicting time slots.
+#### **User Story 1 – Student Registers for a Course**
+**As a student, I want to register for a course within the registration window, so that I can participate in the class.**  
 
-[FE]:
-- Display a user-friendly error message if a time conflict occurs and suggest students adjust their schedule.
+**Acceptance Criteria & Tasks**  
+- **Acceptance Criteria**: 
+    - Students can register for courses only within the registration time window.
+    - Registration should check if the course exists, the student exists, and avoid duplicate enrollments.
+    - Time conflicts with other enrolled courses should be avoided.
+    - Successful registration should return feedback and redirect the user to the course list.
 
-[BE]:
-- Integrate conflict detection logic into the course registration API: compare new registration time slots with existing enrolled courses.
-- Return an error response with details of the conflicting course if applicable.
-
----
-
-# ✅ **3) Generate Course Sessions**
-**User Story**:  
-As a course admin,  
-I want to auto-generate future course sessions weekly,  
-so that I can efficiently manage recurring courses.
-
-**New Functionality**:
-- Support a `GenerateClassSessions` function to generate and upsert future sessions based on a predefined weekly schedule.
-
-[FE]:
-- Provide a "Generate Sessions" button on the course management page to trigger the backend process.
-- Show the result of the session generation (success or failure).
-
-[BE]:
-- Implement the `GenerateClassSessions` logic to accept course plans and create recurring sessions in the database.
-- Ensure a batch operation inserts or updates the generated sessions.
+- [FE-1] Create a registration form allowing students to input `course_id`.  
+- [FE-2] Handle API calls for course registration and display feedback messages.  
+- [FE-3] Implement "Register Now" functionality with dynamic buttons on the course detail page.  
+- [BE-1] Validate course and user data during registration.  
+- [BE-2] Implement a new POST endpoint: `/classes/register`.  
+- [BE-3] Write logic to return conflict/errors for duplicate enrollments or time clashes.  
 
 ---
 
-# ✅ **4) Instructor Retrieves Their Course List**
-**User Story**:  
-As an instructor,  
-I want to view the list of courses I am responsible for,  
-so that I can clearly understand my teaching load.
+#### **User Story 2 – Course Time Conflict Detection**
+**As a student, I want the system to detect if the course timing overlaps with my existing schedule, so that I can avoid conflicts.**  
 
-**Endpoint**: `GET /instructor/courses`  
-**Functionality**: Returns the list of courses the instructor is responsible for.
+**Acceptance Criteria & Tasks**  
+- **Acceptance Criteria**: 
+    - Time conflicts must be checked before enrollment is finalized.
+    - For enrollments with conflicts, the system should provide detailed feedback.  
 
-**Request Parameters**: None (GET request has no body).  
-
-**Header**:
-```
-Authorization: Bearer <token>
-```
-
-[FE]:
-- Create an interface for instructors to view their courses in a list format.
-- Call this API and dynamically render the courses on the frontend.
-- Handle session expiration by prompting instructors to re-login when the token is invalid.
-
-[BE]:
-- Verify the instructor's identity and ensure only their courses are returned.
-- Query the database for courses associated with the logged-in instructor.
-- Optimize query performance to handle large datasets (e.g., add pagination support).
+- [FE-4] Show error messages and explain the conflicting courses if time overlaps occur.  
+- [BE-4] Add backend logic for time conflict detection via weekday normalization and range overlap checks.  
 
 ---
 
-# ✅ **5) Instructor Views Course Students**
-**User Story**:  
-As an instructor,  
-I want to view all students enrolled in a specific course,  
-so that I can monitor their enrollment progress.
+#### **User Story 3 – Generate Course Sessions**
+**As a course admin, I want to auto-generate future course sessions weekly, so that I can efficiently manage recurring courses.**  
 
-**Endpoint**: `GET /instructor/courses/:id/enrollments`  
-**Functionality**: Returns all enrolled students for a specific course.
+**Acceptance Criteria & Tasks**  
+- **Acceptance Criteria**: 
+    - Admin can schedule course sessions automatically by specifying recurrence patterns (e.g., weekly).
+    - The backend updates the database with all new sessions in bulk.
 
-**Request Parameters**: None (GET request has no body).  
-
-**Header**:
-```
-Authorization: Bearer <token>
-```
-
-[FE]:
-- Add a "View Students" interface to the course details page that displays a list of enrolled students.
-- Support search functionality to allow instructors to quickly find specific students.
-- Display a clear error message if the server fails to respond.
-
-[BE]:
-- Fetch the list of students for the specified course from the database.
-- Verify the instructor's permission to access this data.
-- Return relevant student information (e.g., name, enrollment status).
+- [FE-5] Add a "Generate Sessions" button in course management UI.  
+- [FE-6] Display feedback showing the success or failure of session generation.  
+- [BE-5] Build and expose the `GenerateClassSessions` logic using a new backend function.  
+- [BE-6] Add error handling for database bulk inserts or validation mismatches.  
 
 ---
 
-# ✅ **6) Instructor Marks Student Attendance**
-**User Story**:  
-As an instructor,  
-I want to update the attendance status of students in my course,  
-so that I can accurately record their participation.
+#### **User Story 4 – Instructor Retrieves Their Courses**
+**As an instructor, I want to view the list of courses I am responsible for, so that I can clearly understand my teaching load.**  
 
-**Endpoint**: `PATCH /instructor/courses/:id/enrollments`  
-**Functionality**: Updates the attendance status of an enrolled student.
+**Acceptance Criteria & Tasks**  
+- **Acceptance Criteria**: 
+    - Instructors can view all courses they are assigned to.
+    - Only courses for the authenticated instructor are returned.  
 
-**Request Body (JSON)**:
-```json
-{
-  "user_id": 15,
-  "status": "attended"
-}
-```
-
-**Allowed Status Values**:
-```
-enrolled | attended | missed
-```
-
-**Header**:
-```
-Authorization: Bearer <token>
-```
-
-[FE]:
-- Provide a form or inline buttons for instructors to update attendance statuses dynamically.
-- Call the API with the updated `user_id` and `status` values, then refresh the displayed status accordingly.
-- Display success or error messages based on the API response.
-
-[BE]:
-- Validate that the instructor has permission to update attendance for the specified course.
-- Verify that the student is enrolled in the course.
-- Persist the updated status in the database and return a success or failure message.
+- [FE-7] Create a course list page dynamically populated with API data.  
+- [FE-8] Add navigation to the course list page from the dashboard.  
+- [BE-7] Implement the `GET /instructor/courses` endpoint.  
+- [BE-8] Ensure role validation so only instructors can access their data.  
 
 ---
 
-# ✅ **7) SuperManager Assigns User Roles**
-**User Story**:  
-As a SuperManager,  
-I want to assign roles (e.g., Instructor, Manager) to users,  
-so that I can define their permissions accordingly.
+#### **User Story 5 – Instructor Views Enrolled Students**
+**As an instructor, I want to view all students enrolled in a specific course, so that I can monitor their enrollment progress.**  
 
-**Endpoint**: `POST /auth/roles/assign`  
-**Functionality**: SuperManager assigns a role to a user.
+**Acceptance Criteria & Tasks**  
+- **Acceptance Criteria**: 
+    - Displays student data (e.g., name, email, enrollment status) for the selected course.
+    - API request must validate the instructor's permission.  
 
-**Request Body (JSON)**:
-```json
-{
-  "user_id": 20,
-  "role_name": "Instructor"
-}
-```
-
-**Header**:
-```
-Authorization: Bearer <token>
-```
-
-[FE]:
-- Provide a role-assignment interface for SuperManagers with a dropdown to select roles and a search bar for users.
-- Call this API upon submitting the role data and handle success or error responses.
-
-[BE]:
-- Ensure that only SuperManagers (Role == 2) can access this endpoint.
-- Validate both the `user_id` and the `role_name` before updating the database.
-- Avoid duplicate role assignments by checking existing user-role mappings.
+- [FE-9] Add a "View Students" section under the course detail page.  
+- [FE-10] Handle pagination or large data loads in the student list table.  
+- [BE-9] Create the `GET /instructor/courses/:id/enrollments` endpoint and add permission checks.  
 
 ---
 
-# ✅ **8) Manager Retrieves User List (With Pagination)**
-**User Story**:  
-As a Manager,  
-I want to retrieve a paginated list of users,  
-so that I can manage user data more efficiently.
+#### **User Story 6 – Instructor Marks Student Attendance**
+**As an instructor, I want to update the attendance status of students in my course, so that I can accurately record their participation.**  
 
-**Endpoint**: `GET /manager/users?page=1&limit=20`  
-**Functionality**: Returns a paginated user list.
+**Acceptance Criteria & Tasks**  
+- **Acceptance Criteria**: 
+    - Attendance options include: "enrolled", "attended", and "missed".
+    - Updates are valid only for current course participants.  
 
-[FE]:
-- Render user information into a dynamic list on the user management page.
-- Add "Previous" and "Next" buttons for page navigation and update the interface as users paginate.
-- Show a spinner or loading indicator while fetching data.
-
-[BE]:
-- Allow Managers to query for a paginated list of all system users.
-- Implement pagination logic by using `page` and `limit` parameters to determine database offsets.
-- Return a paginated response format, such as:
-```json
-{
-  "users": [{ "id": 1, "name": "Alice" }, ...],
-  "total_count": 100,
-  "current_page": 1
-}
-```
+- [FE-11] Add an inline attendance update form for each student row.  
+- [FE-12] Include filtering by attendance status in the UI.  
+- [BE-10] Implement `PATCH /instructor/courses/:id/enrollments` endpoint with validation logic.  
+- [BE-11] Write persistence logic for updating attendance in the database.  
 
 ---
 
-# ✅ **9) Manager Views User Enrollment Data**
-**User Story**:  
-As a Manager,  
-I want to view the list of courses and states for a specific user,  
-so that I can track their academic progress.
+#### **User Story 7 – SuperManager Assigns User Roles**
+**As a SuperManager, I want to assign roles (e.g., instructor, manager) to users, so that I can define their system permissions accordingly.**  
 
-**Endpoint**: `GET /manager/users/:id/enrollments`  
-**Functionality**: Returns the list of courses and enrollment states for the specified user.
+**Acceptance Criteria & Tasks**  
+- **Acceptance Criteria**: 
+    - Only users with the "SuperManager" role can make updates.
+    - Role assignments must be validated for both user IDs and roles.  
 
-[FE]:
-- Create a dedicated interface to display a user’s course enrollments in a table.
-- Support filtering and sorting by enrollment status, course name, etc.
-- Show error messages when no data is found or if the API request fails.
-
-[BE]:
-- Validate Manager permissions and ensure the user exists.
-- Fetch the user’s courses and enrollment statuses from the database.
-- Respond with detailed course and state information.
+- [FE-13] Implement a role assignment form in the admin panel.  
+- [FE-14] Handle backend call responses and notify the user of results.  
+- [BE-12] Create a POST `/auth/roles/assign` endpoint.  
+- [BE-13] Validate the `user_id` and `role_name` fields server-side.  
 
 ---
 
-# ✅ **10) Manager Adds a Course for the User**
-**User Story**:  
-As a Manager,  
-I want to assign a course to a user,  
-so that they can enroll in specific classes as required.
+#### **User Story 8 – Manager Retrieves Paginated User List**
+**As a Manager, I want to retrieve a paginated list of users, so that I can manage user data efficiently.**  
 
-**Endpoint**: `POST /manager/users/:id/enrollments`  
-**Functionality**: Adds a course to the specified user.
+**Acceptance Criteria & Tasks**  
+- **Acceptance Criteria**: 
+    - Paginated tables implement "Previous" and "Next" navigation.
+    - Filter/sorting parameters should be supported.
 
-**Request Body (JSON)**:
-```json
-{
-  "course_id": 7
-}
-```
-
-[FE]:
-- Create a modal or form for Managers to select course(s) for a user.
-- Call this API to assign the course, and refresh the user’s enrollment table upon success.
-
-[BE]:
-- Verify that the course and user data are valid.
-- Ensure the user is not already enrolled in the course.
-- Insert the new enrollment into the database.
+- [FE-15] Create pagination buttons in the user list UI.  
+- [FE-16] Call backend endpoints dynamically on page changes.  
+- [BE-14] Implement pagination logic in `GET /manager/users`.  
 
 ---
 
-# ✅ **11) Manager Removes a User from a Course**
-**User Story**:  
-As a Manager,  
-I want to remove a course from a user’s enrollments,  
-so that their schedule can be adjusted.
+#### **User Story 9 – Manager Views User Enrollment**
+**As a Manager, I want to view all courses and statuses for a specific user, so that I can track their academic progress.**  
 
-**Endpoint**: `DELETE /manager/users/:id/enrollments/:course_id`  
-**Functionality**: Removes the specified course from the user’s enrollments.
+**Acceptance Criteria & Tasks**  
+- [FE-17] Create a course list for the selected user with basic enrollment details.  
+- [BE-15] Build `GET /manager/users/:id/enrollments` with status filtering.  
 
-[FE]:
-- Add a "Remove" button on the user’s course table.
-- Provide a confirmation dialog before calling the API to delete the enrollment.
+---
 
-[BE]:
-- Validate Manager permissions and ensure the specified course and user exist.
-- Remove the corresponding enrollment from the database.
+#### **User Story 10 – Manager Enrolls User to a Course**
+**As a Manager, I want to enroll a user in a course, so that I can manage their schedule as needed.**  
 
+**Acceptance Criteria & Tasks**  
+- [FE-18] Implement form-based enrollment for Managers.  
+- [BE-16] Handle enrollment requests via `POST /manager/users/:id/enrollments`.  
+
+---
+
+#### **User Story 11 – Manager Removes User Enrollment**
+**As a Manager, I want to remove a user from a course, so that unnecessary enrollments can be cleaned up.**  
+
+**Acceptance Criteria & Tasks**  
+- [FE-19] Add a "Remove Enrollment" button to user details/bulk management pages.  
+- [BE-17] Write logic for `DELETE /manager/users/:id/enrollments/:course_id`.  
+
+---
