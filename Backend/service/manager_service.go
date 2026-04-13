@@ -57,12 +57,6 @@ func ManagerCreateCourse(input CourseUpsertInput) (*model.Course, error) {
 		return nil, err
 	}
 
-	// Generate ClassSession rows for the next 12 weeks
-	if err := GenerateClassSessions(course.ID, 12); err != nil {
-		// Log but don't fail the course creation
-		_ = errors.New("warning: failed to generate class sessions: " + err.Error())
-	}
-
 	_ = fillCourseSpot(course)
 	return course, nil
 }
@@ -180,4 +174,79 @@ func RegisterManager(input model.ManagerRegisterInput) error {
 
 		return nil
 	})
+}
+
+// ✅ Manager: 获取所有用户（分页）
+func ManagerListUsers(page int, limit int) ([]model.User, int64, int, int, int, error) {
+	if page <= 0 {
+		page = 1
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+
+	offset := (page - 1) * limit
+	users, total, err := dao.ListUsersPaged(limit, offset)
+	if err != nil {
+		return nil, 0, 0, 0, 0, err
+	}
+
+	totalPages := int((total + int64(limit) - 1) / int64(limit))
+	return users, total, page, limit, totalPages, nil
+}
+
+// ✅ Manager: 查看某用户已选课程
+func ManagerListUserEnrollments(userID uint) ([]model.Enrollment, error) {
+	if _, err := dao.GetUserByID(userID); err != nil {
+		return nil, errors.New("user not found")
+	}
+	return dao.ListEnrollmentsByUser(userID)
+}
+
+// ✅ Manager: 为用户添加课程
+// Managers bypass the 25-hour enrollment window but still check duplicates and capacity.
+func ManagerAddUserEnrollment(userID uint, courseID uint) error {
+	if _, err := dao.GetUserByID(userID); err != nil {
+		return errors.New("user not found")
+	}
+	course, err := dao.GetCourseByID(courseID)
+	if err != nil {
+		return errors.New("class not found")
+	}
+
+	exists, err := dao.CheckEnrollmentExists(userID, courseID)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return errors.New("enrollment already exists")
+	}
+
+	// Check capacity on next session
+	count, err := dao.CountEnrollmentsByClass(courseID)
+	if err != nil {
+		return err
+	}
+	if int(count) >= course.Capacity {
+		return errors.New("class is full")
+	}
+
+	// Auto-assign the next scheduled session
+	session, err := dao.GetNextScheduledSession(courseID)
+	if err != nil {
+		return errors.New("no upcoming session found for this class")
+	}
+
+	enrollment := &model.Enrollment{
+		UserID:    userID,
+		CourseID:  courseID,
+		SessionID: &session.ID,
+		Status:    model.EnrollmentStatusEnrolled,
+	}
+	return dao.CreateEnrollment(enrollment)
+}
+
+// ✅ Manager: 删除用户课程
+func ManagerDeleteUserEnrollment(userID uint, courseID uint) error {
+	return dao.DeleteEnrollment(userID, courseID)
 }

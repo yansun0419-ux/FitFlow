@@ -79,6 +79,7 @@ func SetupRouter() *gin.Engine {
 	{
 		instructorRoutes.GET("/courses", api.InstructorListCourses)
 		instructorRoutes.GET("/courses/:id/enrollments", api.InstructorListCourseEnrollments)
+		instructorRoutes.POST("/courses/:id/enrollments", api.InstructorAddEnrollment)
 		instructorRoutes.PATCH("/courses/:id/enrollments", api.InstructorUpdateEnrollmentStatus)
 	}
 

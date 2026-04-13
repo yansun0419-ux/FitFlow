@@ -27,10 +27,14 @@ func RegisterClass(c *gin.Context) {
 
 	if err := service.RegisterClass(userID, input.CourseID); err != nil {
 		switch err.Error() {
-		case "user not found", "class not found":
+		case "user not found", "class not found", "no upcoming session found for this class":
 			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		case "enrollment already exists", "class is full", "class schedule overlaps with an existing enrolled class":
 			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		case "invalid class schedule",
+			"registration closed: class has already started",
+			"enrollment opens 25 hours before class start.":
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		default:
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		}
@@ -173,12 +177,12 @@ func GetUserEnrolledClasses(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"courses": courses})
 }
 
-// GetStudentAnalytics returns student dashboard analytics for 7d, 1m, or 3m.
+// GetUserAnalytics returns user dashboard analytics for 7d, 1m, or 3m.
 func GetUserAnalytics(c *gin.Context) {
 	userIDStr := c.Param("id")
 	userID, err := strconv.ParseUint(userIDStr, 10, 32)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid student ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
 		return
 	}
 
@@ -260,7 +264,7 @@ func requireRegisterPermission(c *gin.Context) (uint, error) {
 		return 0, err
 	}
 
-	// role_id 1(Student)/2(SuperManager)/3(Manager) are allowed
+	// role_id 1(User)/2(SuperManager)/3(Manager) are allowed
 	if roleID != 1 && roleID != 2 && roleID != 3 {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Forbidden: insufficient role permissions"})
 		return 0, errors.New("forbidden")
