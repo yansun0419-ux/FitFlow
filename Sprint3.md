@@ -54,8 +54,6 @@ Backend: Qing Li, Yingzhu Chen
     - Admin can schedule course sessions automatically by specifying recurrence patterns (e.g., weekly).
     - The backend updates the database with all new sessions in bulk.
 
-- [FE-5] Add a "Generate Sessions" button in course management UI.  
-- [FE-6] Display feedback showing the success or failure of session generation.  
 - [BE-5] Build and expose the `GenerateClassSessions` logic using a new backend function.  
 - [BE-6] Add error handling for database bulk inserts or validation mismatches.  
 
@@ -160,3 +158,23 @@ Backend: Qing Li, Yingzhu Chen
 - [BE-17] Write logic for `DELETE /manager/users/:id/enrollments/:course_id`.  
 
 ---
+
+### Frontend Unit Tests
+
+- `src/lib/api.test.ts`
+- `src/lib/validation.test.ts`
+- `src/store/authStore.test.ts`
+- `src/pages/Login.test.tsx`
+- `src/pages/Register.test.tsx`
+- `src/pages/Profile.test.tsx`
+- `src/pages/Browse.test.tsx` (Sprint 3: enrollment window display logic)
+- `src/pages/InstructorDashboard.test.tsx` (Sprint 3: attendance and walk-in flows)
+- `src/pages/InstructorProfile.test.tsx` (Sprint 3: bio and availability quick actions)
+
+### Backend Unit Tests
+
+- Pending backend team update.
+
+### Backend API Documentation Updates
+
+- Pending backend team update.
