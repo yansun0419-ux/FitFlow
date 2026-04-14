@@ -7,8 +7,8 @@ Backend: Qing Li, Yingzhu Chen
 **Project Links**:  
 
 🔗 GitHub Repository: https://github.com/Ilachan/FitFlow  
-📺 Frontend Demo Video: 
-📺 Backend Demo Video: 
+📺 Demo Video: https://youtu.be/fK1popveTx0 
+
 
 ---
 
@@ -173,8 +173,65 @@ Backend: Qing Li, Yingzhu Chen
 
 ### Backend Unit Tests
 
-- Pending backend team update.
+- Overall status: PASS
+- Packages with tests: `routes`, `service`
+- Packages without tests: `api`, `dao`, `db`, `model`, `script/seeder/demo_data`, `tmpdbmaint`
+- Runtime: about 3.7 seconds for the full suite
+
+Notable coverage shown in the suite:
+
+- class registration and dropping
+- class listing and analytics
+- instructor course listing and enrollment updates
+- manager user and enrollment management
+- super manager invite code creation
+
+The negative-path tests print expected `record not found` database logs, but the assertions still pass.
 
 ### Backend API Documentation Updates
 
-- Pending backend team update.
+## Auth
+
+- `POST /auth/login` - log in and return a JWT plus `role_id`
+- `GET /auth/profile` - get the authenticated user's profile
+- `PUT /auth/profile` - update the authenticated user's profile
+- `POST /auth/manager/register` - register a manager with an invite code
+- `POST /auth/manager/invite-codes` - create a manager invite code, super manager only
+- `POST /auth/roles/assign` - assign a role, super manager only
+
+## Users
+
+- `DELETE /users/:id` - delete a user
+- `GET /users/:id/enrollments` - list the user's enrolled classes
+- `GET /users/:id/analytics?range=7d|1m|3m` - view user analytics
+
+## Classes
+
+- `GET /classes` - list classes with pagination
+- `GET /classes/:id` - get a single class
+- `GET /classes/:id/enrollments` - list class enrollments, manager only
+- `POST /classes/register` - enroll in a class
+- `POST /classes/drop` - drop a class
+- `POST /classes` - create a class, manager only
+- `PUT /classes/:id` - update a class, manager only
+- `DELETE /classes/:id` - delete a class, manager only
+
+## Instructor
+
+- `GET /instructor/courses` - list instructor courses
+- `GET /instructor/courses/:id/enrollments` - list enrollments for one instructor course
+- `POST /instructor/courses/:id/enrollments` - enroll a user in an instructor course
+- `PATCH /instructor/courses/:id/enrollments` - update enrollment status as `attended` or `missed`
+
+## Manager
+
+- `GET /manager/users?page=1&limit=20` - list users
+- `GET /manager/users/:id/enrollments` - list one user's enrollments
+- `POST /manager/users/:id/enrollments` - add a user enrollment
+- `DELETE /manager/users/:id/enrollments/:course_id` - delete a user enrollment
+
+## Notes
+
+- Authentication uses the `Authorization: Bearer <token>` header.
+- Public endpoints are limited to class listing, class details, registration, and login/register flows.
+- Role checks are enforced in the handlers, so the same route can return `401`, `403`, `404`, `409`, or `201` depending on the request state.
