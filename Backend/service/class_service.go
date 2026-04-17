@@ -185,32 +185,10 @@ func ListClassEnrollments(courseID uint) ([]model.Enrollment, error) {
 	if _, err := dao.GetCourseByID(courseID); err != nil {
 		return nil, errors.New("class not found")
 	}
+	if err := dao.SyncEndedEnrollmentsToAttended(); err != nil {
+		return nil, err
+	}
 	return dao.ListEnrollmentsByClass(courseID)
-}
-
-// CHANGED/NEW: ListClassesPaged returns paged result with spot filled.
-func ListClassesPaged(page int, pageSize int) ([]model.Course, int64, error) {
-	if page < 1 {
-		page = 1
-	}
-	if pageSize < 1 {
-		pageSize = 20
-	}
-
-	offset := (page - 1) * pageSize
-
-	classes, total, err := dao.ListClassesPaged(pageSize, offset)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	for i := range classes {
-		if err := fillCourseSpot(&classes[i]); err != nil {
-			return nil, 0, err
-		}
-	}
-
-	return classes, total, nil
 }
 
 func fillCourseSpot(class *model.Course) error {
@@ -224,6 +202,11 @@ func fillCourseSpot(class *model.Course) error {
 	}
 	class.Spot = spot
 	return nil
+}
+
+// ListCategories returns all distinct course categories.
+func ListCategories() ([]string, error) {
+	return dao.ListCategories()
 }
 
 // ListClasses returns all courses with spot populated.
@@ -257,6 +240,9 @@ func GetUserEnrolledClasses(userID uint) ([]model.Course, error) {
 	if _, err := dao.GetUserByID(userID); err != nil {
 		return nil, errors.New("user not found")
 	}
+	if err := dao.SyncEndedEnrollmentsToAttended(); err != nil {
+		return nil, err
+	}
 
 	courses, err := dao.ListEnrolledCoursesByUser(userID)
 	if err != nil {
@@ -276,6 +262,9 @@ func GetUserEnrolledClasses(userID uint) ([]model.Course, error) {
 func GetUserAnalytics(userID uint, rangeKey string) (*model.UserAnalyticsResponse, error) {
 	if _, err := dao.GetUserByID(userID); err != nil {
 		return nil, errors.New("user not found")
+	}
+	if err := dao.SyncEndedEnrollmentsToAttended(); err != nil {
+		return nil, err
 	}
 
 	if err := dao.BackfillUserDailyActivityFromEnrollments(userID); err != nil {

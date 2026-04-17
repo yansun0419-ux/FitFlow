@@ -5,10 +5,11 @@ import (
 	"my-course-backend/model"
 )
 
-func ListCoursesByInstructor(instructorID uint) ([]model.Course, error) {
+// ListCoursesByInstructorName returns all courses whose instructor column matches the given name (case-insensitive, trimmed).
+func ListCoursesByInstructorName(name string) ([]model.Course, error) {
 	var courses []model.Course
 	if err := db.DB.
-		Where("instructor_id = ?", instructorID).
+		Where("LOWER(TRIM(instructor)) = LOWER(TRIM(?))", name).
 		Order("start_time ASC").
 		Find(&courses).Error; err != nil {
 		return nil, err

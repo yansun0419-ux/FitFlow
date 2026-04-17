@@ -27,6 +27,9 @@ func InitDB() {
 	migrateUserInfoTable()
 	migrateEnrollmentTable()
 	migrateCourseInstructorColumn()
+	migrateCourseInstructorToName()
+	ensureInstructorTable()
+	ensureInstructorNameColumn()
 	ensureUserDailyActivityTable()
 	ensureClassSessionTable()
 	migrateClassSessions()
@@ -368,13 +371,95 @@ func ensureUserDailyActivityTable() {
 }
 
 func migrateCourseInstructorColumn() {
-    if DB == nil {
-        return
-    }
+	if DB == nil {
+		return
+	}
 
-    if DB.Migrator().HasTable("Course") && !DB.Migrator().HasColumn("Course", "instructor_id") {
-        if err := DB.Exec(`ALTER TABLE "Course" ADD COLUMN instructor_id INTEGER;`).Error; err != nil {
-            log.Printf("Failed to add instructor_id to Course: %v", err)
-        }
-    }
+	if DB.Migrator().HasTable("Course") && !DB.Migrator().HasColumn("Course", "instructor_id") {
+		if err := DB.Exec(`ALTER TABLE "Course" ADD COLUMN instructor_id INTEGER;`).Error; err != nil {
+			log.Printf("Failed to add instructor_id to Course: %v", err)
+		}
+	}
+}
+
+// migrateCourseInstructorToName migrates Course.instructor_id (INTEGER FK to User.id)
+// to Course.instructor (TEXT — instructor's display name).
+// Safe to run multiple times; idempotent.
+func migrateCourseInstructorToName() {
+	if DB == nil || !DB.Migrator().HasTable("Course") {
+		return
+	}
+
+	// Add new `instructor` column if missing.
+	if !DB.Migrator().HasColumn("Course", "instructor") {
+		if err := DB.Exec(`ALTER TABLE "Course" ADD COLUMN instructor TEXT;`).Error; err != nil {
+			log.Printf("Failed to add instructor column to Course: %v", err)
+			return
+		}
+	}
+
+	// Backfill instructor names from User table using the old instructor_id, if still present.
+	if DB.Migrator().HasColumn("Course", "instructor_id") {
+		if err := DB.Exec(`
+            UPDATE Course
+            SET instructor = (SELECT name FROM "User" WHERE "User".id = Course.instructor_id)
+            WHERE (instructor IS NULL OR instructor = '')
+              AND instructor_id IS NOT NULL;
+        `).Error; err != nil {
+			log.Printf("Failed to backfill Course.instructor from instructor_id: %v", err)
+		}
+
+		// Drop the old instructor_id column (SQLite 3.35+ supports this).
+		if err := DB.Exec(`ALTER TABLE "Course" DROP COLUMN instructor_id;`).Error; err != nil {
+			log.Printf("Failed to drop instructor_id from Course: %v", err)
+		}
+	}
+}
+
+// ensureInstructorTable creates the Instructor table (id, user_id, name, bio) if missing.
+func ensureInstructorTable() {
+	if DB == nil {
+		return
+	}
+
+	query := `
+		CREATE TABLE IF NOT EXISTS "Instructor" (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			user_id INTEGER NOT NULL UNIQUE,
+			name TEXT,
+			bio TEXT,
+			FOREIGN KEY (user_id) REFERENCES "User"(id) ON UPDATE CASCADE ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_instructor_user_id ON "Instructor" (user_id);
+	`
+
+	if err := DB.Exec(query).Error; err != nil {
+		log.Printf("Failed to ensure Instructor table exists: %v", err)
+	}
+}
+
+// ensureInstructorNameColumn adds and backfills Instructor.name for existing databases.
+func ensureInstructorNameColumn() {
+	if DB == nil || !DB.Migrator().HasTable("Instructor") {
+		return
+	}
+
+	if !DB.Migrator().HasColumn("Instructor", "name") {
+		if err := DB.Exec(`ALTER TABLE "Instructor" ADD COLUMN name TEXT;`).Error; err != nil {
+			log.Printf("Failed to add name column to Instructor: %v", err)
+			return
+		}
+	}
+
+	if err := DB.Exec(`
+		UPDATE "Instructor"
+		SET name = (
+			SELECT "User".name
+			FROM "User"
+			WHERE "User".id = "Instructor".user_id
+		)
+		WHERE name IS NULL OR TRIM(name) = '';
+	`).Error; err != nil {
+		log.Printf("Failed to backfill Instructor.name from User.name: %v", err)
+	}
 }

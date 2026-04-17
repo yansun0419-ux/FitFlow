@@ -10,6 +10,14 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// SyncEndedEnrollmentsToAttended marks enrollments as attended after a 15-minute grace period post class end.
+func SyncEndedEnrollmentsToAttended() error {
+	cutoff := time.Now().Add(-15 * time.Minute)
+	return db.DB.Model(&model.Enrollment{}).
+		Where("status = ? AND session_id IN (SELECT id FROM ClassSession WHERE end_at < ?)", model.EnrollmentStatusEnrolled, cutoff).
+		Update("status", model.EnrollmentStatusAttended).Error
+}
+
 // GetCourseByID retrieves a course by ID.
 func GetCourseByID(id uint) (*model.Course, error) {
 	var class model.Course
@@ -19,22 +27,6 @@ func GetCourseByID(id uint) (*model.Course, error) {
 	return &class, nil
 }
 
-// ListClassesPaged returns paginated courses and total count.
-func ListClassesPaged(limit int, offset int) ([]model.Course, int64, error) {
-	var classes []model.Course
-	var total int64
-
-	if err := db.DB.Model(&model.Course{}).Count(&total).Error; err != nil {
-		return nil, 0, err
-	}
-
-	if err := db.DB.Order("start_time ASC").Limit(limit).Offset(offset).Find(&classes).Error; err != nil {
-		return nil, 0, err
-	}
-
-	return classes, total, nil
-}
-
 // ListClasses retrieves all courses.
 func ListClasses() ([]model.Course, error) {
 	var classes []model.Course
@@ -42,6 +34,19 @@ func ListClasses() ([]model.Course, error) {
 		return nil, err
 	}
 	return classes, nil
+}
+
+// ListCategories returns all distinct non-empty categories.
+func ListCategories() ([]string, error) {
+	var categories []string
+	if err := db.DB.Model(&model.Course{}).
+		Distinct("category").
+		Where("category IS NOT NULL AND TRIM(category) != ''").
+		Order("category ASC").
+		Pluck("category", &categories).Error; err != nil {
+		return nil, err
+	}
+	return categories, nil
 }
 
 // GetUserByID retrieves a user by ID.

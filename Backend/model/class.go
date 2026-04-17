@@ -26,7 +26,7 @@ type Course struct {
 	Category string `gorm:"column:category" json:"category"`
 	Weekday  string `gorm:"column:weekday" json:"weekday"`
 
-	InstructorID uint `gorm:"column:instructor_id" json:"instructor_id"`
+	Instructor string `gorm:"column:instructor" json:"instructor"`
 
 	Spot int `gorm:"-" json:"spot"`
 }
