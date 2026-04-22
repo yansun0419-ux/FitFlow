@@ -367,30 +367,18 @@ func TestListClassesEndpoint_OK(t *testing.T) {
 	seedRouteEnrollmentAt(t, user.ID, courseA.ID, model.EnrollmentStatusAttended, time.Now())
 	router := routes.SetupRouter()
 
-	recorder := performJSONRequest(t, router, http.MethodGet, "/classes?page=1", "", nil)
+	recorder := performJSONRequest(t, router, http.MethodGet, "/classes", "", nil)
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d with body %s", recorder.Code, recorder.Body.String())
 	}
 
 	var response struct {
-		Page     int            `json:"page"`
-		PageSize int            `json:"page_size"`
-		Total    int64          `json:"total"`
-		Classes  []model.Course `json:"classes"`
+		Classes []model.Course `json:"classes"`
 	}
 	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
 		t.Fatalf("failed to decode response: %v", err)
 	}
 
-	if response.Page != 1 {
-		t.Fatalf("expected page 1, got %d", response.Page)
-	}
-	if response.PageSize != 20 {
-		t.Fatalf("expected page size 20, got %d", response.PageSize)
-	}
-	if response.Total != 2 {
-		t.Fatalf("expected total 2, got %d", response.Total)
-	}
 	if len(response.Classes) != 2 {
 		t.Fatalf("expected 2 classes, got %d", len(response.Classes))
 	}

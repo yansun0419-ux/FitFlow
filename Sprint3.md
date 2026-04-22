@@ -7,8 +7,8 @@ Backend: Qing Li, Yingzhu Chen
 **Project Links**:  
 
 🔗 GitHub Repository: https://github.com/Ilachan/FitFlow  
-📺 Frontend Demo Video: 
-📺 Backend Demo Video: 
+📺 Demo Video: https://youtu.be/fK1popveTx0 
+
 
 ---
 
@@ -103,62 +103,6 @@ Backend: Qing Li, Yingzhu Chen
 
 ---
 
-#### **User Story 7 – SuperManager Assigns User Roles**
-**As a SuperManager, I want to assign roles (e.g., instructor, manager) to users, so that I can define their system permissions accordingly.**  
-
-**Acceptance Criteria & Tasks**  
-- **Acceptance Criteria**: 
-    - Only users with the "SuperManager" role can make updates.
-    - Role assignments must be validated for both user IDs and roles.  
-
-- [FE-13] Implement a role assignment form in the admin panel.  
-- [FE-14] Handle backend call responses and notify the user of results.  
-- [BE-12] Create a POST `/auth/roles/assign` endpoint.  
-- [BE-13] Validate the `user_id` and `role_name` fields server-side.  
-
----
-
-#### **User Story 8 – Manager Retrieves Paginated User List**
-**As a Manager, I want to retrieve a paginated list of users, so that I can manage user data efficiently.**  
-
-**Acceptance Criteria & Tasks**  
-- **Acceptance Criteria**: 
-    - Paginated tables implement "Previous" and "Next" navigation.
-    - Filter/sorting parameters should be supported.
-
-- [FE-15] Create pagination buttons in the user list UI.  
-- [FE-16] Call backend endpoints dynamically on page changes.  
-- [BE-14] Implement pagination logic in `GET /manager/users`.  
-
----
-
-#### **User Story 9 – Manager Views User Enrollment**
-**As a Manager, I want to view all courses and statuses for a specific user, so that I can track their academic progress.**  
-
-**Acceptance Criteria & Tasks**  
-- [FE-17] Create a course list for the selected user with basic enrollment details.  
-- [BE-15] Build `GET /manager/users/:id/enrollments` with status filtering.  
-
----
-
-#### **User Story 10 – Manager Enrolls User to a Course**
-**As a Manager, I want to enroll a user in a course, so that I can manage their schedule as needed.**  
-
-**Acceptance Criteria & Tasks**  
-- [FE-18] Implement form-based enrollment for Managers.  
-- [BE-16] Handle enrollment requests via `POST /manager/users/:id/enrollments`.  
-
----
-
-#### **User Story 11 – Manager Removes User Enrollment**
-**As a Manager, I want to remove a user from a course, so that unnecessary enrollments can be cleaned up.**  
-
-**Acceptance Criteria & Tasks**  
-- [FE-19] Add a "Remove Enrollment" button to user details/bulk management pages.  
-- [BE-17] Write logic for `DELETE /manager/users/:id/enrollments/:course_id`.  
-
----
-
 ### Frontend Unit Tests
 
 - `src/lib/api.test.ts`
@@ -173,8 +117,65 @@ Backend: Qing Li, Yingzhu Chen
 
 ### Backend Unit Tests
 
-- Pending backend team update.
+- Overall status: PASS
+- Packages with tests: `routes`, `service`
+- Packages without tests: `api`, `dao`, `db`, `model`, `script/seeder/demo_data`, `tmpdbmaint`
+- Runtime: about 3.7 seconds for the full suite
+
+Notable coverage shown in the suite:
+
+- class registration and dropping
+- class listing and analytics
+- instructor course listing and enrollment updates
+- manager user and enrollment management
+- super manager invite code creation
+
+The negative-path tests print expected `record not found` database logs, but the assertions still pass.
 
 ### Backend API Documentation Updates
 
-- Pending backend team update.
+## Auth
+
+- `POST /auth/login` - log in and return a JWT plus `role_id`
+- `GET /auth/profile` - get the authenticated user's profile
+- `PUT /auth/profile` - update the authenticated user's profile
+- `POST /auth/manager/register` - register a manager with an invite code
+- `POST /auth/manager/invite-codes` - create a manager invite code, super manager only
+- `POST /auth/roles/assign` - assign a role, super manager only
+
+## Users
+
+- `DELETE /users/:id` - delete a user
+- `GET /users/:id/enrollments` - list the user's enrolled classes
+- `GET /users/:id/analytics?range=7d|1m|3m` - view user analytics
+
+## Classes
+
+- `GET /classes` - list classes with pagination
+- `GET /classes/:id` - get a single class
+- `GET /classes/:id/enrollments` - list class enrollments, manager only
+- `POST /classes/register` - enroll in a class
+- `POST /classes/drop` - drop a class
+- `POST /classes` - create a class, manager only
+- `PUT /classes/:id` - update a class, manager only
+- `DELETE /classes/:id` - delete a class, manager only
+
+## Instructor
+
+- `GET /instructor/courses` - list instructor courses
+- `GET /instructor/courses/:id/enrollments` - list enrollments for one instructor course
+- `POST /instructor/courses/:id/enrollments` - enroll a user in an instructor course
+- `PATCH /instructor/courses/:id/enrollments` - update enrollment status as `attended` or `missed`
+
+## Manager
+
+- `GET /manager/users?page=1&limit=20` - list users
+- `GET /manager/users/:id/enrollments` - list one user's enrollments
+- `POST /manager/users/:id/enrollments` - add a user enrollment
+- `DELETE /manager/users/:id/enrollments/:course_id` - delete a user enrollment
+
+## Notes
+
+- Authentication uses the `Authorization: Bearer <token>` header.
+- Public endpoints are limited to class listing, class details, registration, and login/register flows.
+- Role checks are enforced in the handlers, so the same route can return `401`, `403`, `404`, `409`, or `201` depending on the request state.

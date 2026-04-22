@@ -69,31 +69,26 @@ func DropClass(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Class unenrolled successfully"})
 }
 
-// ListClasses returns paginated courses. Public endpoint.
-// GET /classes?page=1
+// ListClasses returns all courses. Public endpoint.
 func ListClasses(c *gin.Context) {
-	const pageSize = 20
-
-	pageStr := c.Query("page")
-	page := 1
-	if pageStr != "" {
-		if v, err := strconv.Atoi(pageStr); err == nil && v > 0 {
-			page = v
-		}
-	}
-
-	classes, total, err := service.ListClassesPaged(page, pageSize)
+	classes, err := service.ListClasses()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"page":      page,
-		"page_size": pageSize,
-		"total":     total,
-		"classes":   classes,
-	})
+	c.JSON(http.StatusOK, gin.H{"classes": classes})
+}
+
+// ListCategories returns all distinct course categories. Public endpoint.
+// GET /classes/categories
+func ListCategories(c *gin.Context) {
+	categories, err := service.ListCategories()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"categories": categories})
 }
 
 // GetClass returns a single course by ID. Public endpoint.

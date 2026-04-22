@@ -335,7 +335,7 @@ func TestDropClass_NotFound(t *testing.T) {
 	}
 }
 
-func TestListClassesPaged_ReturnsSpotAndPagination(t *testing.T) {
+func TestListClasses_ReturnsSpot(t *testing.T) {
 	setupClassServiceTestDB(t)
 
 	user1 := seedRoleAndUser(t, 1)
@@ -346,15 +346,12 @@ func TestListClassesPaged_ReturnsSpotAndPagination(t *testing.T) {
 	seedEnrollmentAt(t, user1.ID, courseA.ID, model.EnrollmentStatusEnrolled, time.Now())
 	seedEnrollmentAt(t, user2.ID, courseA.ID, model.EnrollmentStatusAttended, time.Now())
 
-	classes, total, err := ListClassesPaged(1, 10)
+	classes, err := ListClasses()
 	if err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}
-	if total != 2 {
-		t.Fatalf("expected total classes 2, got %d", total)
-	}
 	if len(classes) != 2 {
-		t.Fatalf("expected 2 classes in page, got %d", len(classes))
+		t.Fatalf("expected 2 classes, got %d", len(classes))
 	}
 
 	spots := map[uint]int{}
@@ -367,6 +364,67 @@ func TestListClassesPaged_ReturnsSpotAndPagination(t *testing.T) {
 	}
 	if spots[courseB.ID] != 2 {
 		t.Fatalf("expected course B spot 2, got %d", spots[courseB.ID])
+	}
+}
+
+func TestListClassEnrollments_AutoMarksEndedEnrollmentsAsAttended(t *testing.T) {
+	setupClassServiceTestDB(t)
+
+	user := seedRoleAndUser(t, 1)
+	course := seedCourse(t, "Course A", 3, "Cardio")
+	pastSession := seedPastSession(t, course, 1)
+	seedEnrollmentForSession(t, user.ID, course.ID, pastSession.ID, model.EnrollmentStatusEnrolled, time.Now().AddDate(0, 0, -1))
+
+	enrollments, err := ListClassEnrollments(course.ID)
+	if err != nil {
+		t.Fatalf("expected success, got error: %v", err)
+	}
+	if len(enrollments) != 1 {
+		t.Fatalf("expected 1 enrollment, got %d", len(enrollments))
+	}
+	if enrollments[0].Status != model.EnrollmentStatusAttended {
+		t.Fatalf("expected status attended, got %s", enrollments[0].Status)
+	}
+
+	var enrollment model.Enrollment
+	if err := db.DB.Where("user_id = ? AND course_id = ?", user.ID, course.ID).First(&enrollment).Error; err != nil {
+		t.Fatalf("failed to reload enrollment: %v", err)
+	}
+	if enrollment.Status != model.EnrollmentStatusAttended {
+		t.Fatalf("expected DB status attended, got %s", enrollment.Status)
+	}
+}
+
+func TestListClassEnrollments_DoesNotAutoMarkWithinGracePeriod(t *testing.T) {
+	setupClassServiceTestDB(t)
+
+	user := seedRoleAndUser(t, 1)
+	course := seedCourse(t, "Course A", 3, "Cardio")
+
+	now := time.Now()
+	recentlyEnded := model.ClassSession{
+		CourseID:    course.ID,
+		SessionDate: now.Format("2006-01-02"),
+		StartAt:     now.Add(-35 * time.Minute),
+		EndAt:       now.Add(-5 * time.Minute),
+		Status:      "completed",
+		Capacity:    course.Capacity,
+	}
+	if err := db.DB.Create(&recentlyEnded).Error; err != nil {
+		t.Fatalf("failed to seed recently ended session: %v", err)
+	}
+
+	seedEnrollmentForSession(t, user.ID, course.ID, recentlyEnded.ID, model.EnrollmentStatusEnrolled, now.Add(-40*time.Minute))
+
+	enrollments, err := ListClassEnrollments(course.ID)
+	if err != nil {
+		t.Fatalf("expected success, got error: %v", err)
+	}
+	if len(enrollments) != 1 {
+		t.Fatalf("expected 1 enrollment, got %d", len(enrollments))
+	}
+	if enrollments[0].Status != model.EnrollmentStatusEnrolled {
+		t.Fatalf("expected status enrolled during grace period, got %s", enrollments[0].Status)
 	}
 }
 

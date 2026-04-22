@@ -84,16 +84,22 @@ func seedCourseWithInstructor(t *testing.T, instructorID uint, name string, capa
 	startTime, _ := model.ParseTimeOnly("09:00")
 	endTime, _ := model.ParseTimeOnly("10:00")
 
+	// Look up instructor's name so the Course.Instructor column is populated correctly.
+	var instructorUser model.User
+	if err := db.DB.First(&instructorUser, instructorID).Error; err != nil {
+		t.Fatalf("failed to load instructor user: %v", err)
+	}
+
 	course := model.Course{
-		CourseName:   name,
-		CourseCode:    fmt.Sprintf("INS-%d", time.Now().UnixNano()),
-		Capacity:     capacity,
-		Category:     "Fitness",
-		StartTime:    startTime,
-		EndTime:      endTime,
-		Weekday:      "Monday",
-		InstructorID: instructorID,
-		Duration:     60,
+		CourseName: name,
+		CourseCode: fmt.Sprintf("INS-%d", time.Now().UnixNano()),
+		Capacity:   capacity,
+		Category:   "Fitness",
+		StartTime:  startTime,
+		EndTime:    endTime,
+		Weekday:    "Monday",
+		Instructor: instructorUser.Name,
+		Duration:   60,
 	}
 	if err := db.DB.Create(&course).Error; err != nil {
 		t.Fatalf("failed to seed course: %v", err)

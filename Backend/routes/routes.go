@@ -61,6 +61,7 @@ func SetupRouter() *gin.Engine {
 	{
 		// public
 		classRoutes.GET("", api.ListClasses)
+		classRoutes.GET("/categories", api.ListCategories)
 		classRoutes.GET("/:id", api.GetClass)
 		// manager-only
 		classRoutes.GET("/:id/enrollments", api.ListClassEnrollments)
