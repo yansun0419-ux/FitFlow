@@ -132,3 +132,50 @@ func UpdateEnrollmentStatusByInstructor(instructorID, courseID, userID uint, sta
 	}
 	return nil
 }
+
+
+// 为课程添加用户报名
+func InstructorAddUserEnrollment(userID uint, courseID uint) error {
+    if _, err := dao.GetUserByID(userID); err != nil {
+        return errors.New("user not found")
+    }
+    course, err := dao.GetCourseByID(courseID)
+    if err != nil {
+        return errors.New("class not found")
+    }
+
+    exists, err := dao.CheckEnrollmentExists(userID, courseID)
+    if err != nil {
+        return err
+    }
+    if exists {
+        return errors.New("enrollment already exists")
+    }
+
+    // 检查容量
+    count, err := dao.CountEnrollmentsByClass(courseID)
+    if err != nil {
+        return err
+    }
+    if int(count) >= course.Capacity {
+        return errors.New("class is full")
+    }
+
+    session, err := dao.GetNextScheduledSession(courseID)
+    if err != nil {
+        return errors.New("no upcoming session found for this class")
+    }
+
+    enrollment := &model.Enrollment{
+        UserID:    userID,
+        CourseID:  courseID,
+        SessionID: &session.ID,
+        Status:    model.EnrollmentStatusEnrolled,
+    }
+    return dao.CreateEnrollment(enrollment)
+}
+
+// 删除用户报名
+func InstructorDeleteUserEnrollment(userID uint, courseID uint) error {
+    return dao.DeleteEnrollment(userID, courseID)
+}

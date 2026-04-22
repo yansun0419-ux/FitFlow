@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// 统一角色校验：返回 userID 和 error
 func requireInstructorRole(c *gin.Context) (uint, error) {
 	tokenString, err := getTokenStringFromAuthHeader(c)
 	if err != nil {
@@ -161,4 +162,71 @@ func InstructorUpdateEnrollmentStatus(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "status updated"})
+}
+
+// === === 你提到的两个接口 === ===
+
+// POST /instructor/courses/:id/enrollments
+func InstructorAddUserEnrollment(c *gin.Context) {
+	_, err := requireInstructorRole(c)
+	if err != nil {
+		return
+	}
+
+	courseIDStr := c.Param("id")
+	courseID, err := strconv.ParseUint(courseIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid course ID"})
+		return
+	}
+
+	var input struct {
+		UserID uint `json:"user_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := service.InstructorAddUserEnrollment(input.UserID, uint(courseID)); err != nil {
+		switch err.Error() {
+		case "user not found", "class not found", "no upcoming session found for this class":
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		case "enrollment already exists", "class is full":
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		}
+		return
+	}
+
+	c.JSON(http.StatusCreated, gin.H{"message": "enrollment created"})
+}
+
+// DELETE /instructor/courses/:id/enrollments/:user_id
+func InstructorDeleteUserEnrollment(c *gin.Context) {
+	_, err := requireInstructorRole(c)
+	if err != nil {
+		return
+	}
+
+	courseIDStr := c.Param("id")
+	userIDStr := c.Param("user_id")
+	courseID, err := strconv.ParseUint(courseIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid course ID"})
+		return
+	}
+	userID, err := strconv.ParseUint(userIDStr, 10, 32)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid user ID"})
+		return
+	}
+
+	if err := service.InstructorDeleteUserEnrollment(uint(userID), uint(courseID)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "enrollment deleted"})
 }
