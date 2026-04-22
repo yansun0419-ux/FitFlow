@@ -10,7 +10,7 @@ import toast from "react-hot-toast";
 
 const AVAILABILITY_DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-type QuickAction = "bio" | "password" | "availability" | null;
+type QuickAction = "bio" | "password" | null;
 
 const InstructorProfile = () => {
   const isPreviewInstructor =
@@ -32,15 +32,9 @@ const InstructorProfile = () => {
     ],
     teachingSince: "2015",
     totalClasses: 1240,
-    rating: 4.9,
   });
   const [activeAction, setActiveAction] = useState<QuickAction>(null);
   const [bioDraft, setBioDraft] = useState(profile.bio);
-  const [availability, setAvailability] = useState<string[]>([
-    "Mon",
-    "Wed",
-    "Fri",
-  ]);
   const [passwordDraft, setPasswordDraft] = useState({
     currentPassword: "",
     nextPassword: "",
@@ -63,14 +57,6 @@ const InstructorProfile = () => {
 
   const closeAction = () => {
     setActiveAction(null);
-  };
-
-  const toggleAvailability = (day: string) => {
-    setAvailability((prev) =>
-      prev.includes(day)
-        ? prev.filter((value) => value !== day)
-        : [...prev, day],
-    );
   };
 
   const handleSaveAction = () => {
@@ -104,11 +90,6 @@ const InstructorProfile = () => {
       toast.success("Password updated in demo mode.");
       closeAction();
       return;
-    }
-
-    if (activeAction === "availability") {
-      toast.success("Availability saved in demo mode.");
-      closeAction();
     }
   };
 
@@ -155,18 +136,10 @@ const InstructorProfile = () => {
                 Lead Instructor
               </p>
 
-              <div className="grid grid-cols-2 gap-2 pt-4 border-t border-slate-100">
+              <div className="pt-4 border-t border-slate-100">
                 <div className="text-center">
                   <p className="text-xs text-slate-400 uppercase font-bold">
-                    Rating
-                  </p>
-                  <p className="text-lg font-bold text-slate-800">
-                    ⭐ {profile.rating}
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-xs text-slate-400 uppercase font-bold">
-                    Classes
+                    Classes Taught
                   </p>
                   <p className="text-lg font-bold text-slate-800">
                     {profile.totalClasses}
@@ -195,25 +168,6 @@ const InstructorProfile = () => {
                 >
                   Change Password
                 </Button>
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-sm text-rose-500 hover:text-rose-600 hover:bg-rose-50"
-                  onClick={() => openAction("availability")}
-                >
-                  Manage Availability
-                </Button>
-              </div>
-              <div className="mt-5 pt-4 border-t border-slate-100">
-                <p className="text-xs uppercase tracking-wider text-slate-400 font-bold mb-2">
-                  Current Availability
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {availability.map((day) => (
-                    <Badge key={day} className="bg-emerald-50 text-emerald-700">
-                      {day}
-                    </Badge>
-                  ))}
-                </div>
               </div>
             </Card>
           </div>
@@ -272,16 +226,12 @@ const InstructorProfile = () => {
           <h2 className="text-2xl font-bold text-slate-900 mb-2">
             {activeAction === "bio"
               ? "Edit Profile Bio"
-              : activeAction === "password"
-                ? "Change Password"
-                : "Manage Availability"}
+              : "Change Password"}
           </h2>
           <p className="text-sm text-slate-500 mb-6">
             {activeAction === "bio"
               ? "Update the bio shown on your instructor profile."
-              : activeAction === "password"
-                ? "This is a demo-only password change flow."
-                : "Toggle your teaching days for presentation purposes."}
+              : "This is a demo-only password change flow."}
           </p>
 
           {activeAction === "bio" && (
@@ -330,32 +280,6 @@ const InstructorProfile = () => {
                   }))
                 }
               />
-            </div>
-          )}
-
-          {activeAction === "availability" && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                {AVAILABILITY_DAYS.map((day) => {
-                  const selected = availability.includes(day);
-                  return (
-                    <button
-                      key={day}
-                      onClick={() => toggleAvailability(day)}
-                      className={`rounded-2xl border px-4 py-3 text-sm font-semibold transition-all ${
-                        selected
-                          ? "border-emerald-300 bg-emerald-50 text-emerald-700"
-                          : "border-slate-200 bg-white text-slate-500 hover:border-indigo-300 hover:text-indigo-700"
-                      }`}
-                    >
-                      {day}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-xs text-slate-500">
-                Select the days you want to teach in the demo roster.
-              </p>
             </div>
           )}
 
