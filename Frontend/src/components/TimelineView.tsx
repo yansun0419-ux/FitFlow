@@ -6,6 +6,7 @@ interface TimelineViewProps {
   courses: CourseCardItem[];
   onEventClick: (course: CourseCardItem) => void;
   enrolledCourseIds: number[];
+  selectedWeekday: string;
 }
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -32,6 +33,7 @@ const TimelineView = ({
   courses,
   onEventClick,
   enrolledCourseIds,
+  selectedWeekday,
 }: TimelineViewProps) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const headerScrollRef = useRef<HTMLDivElement>(null);
@@ -50,9 +52,13 @@ const TimelineView = ({
     }
   }, []);
 
+  const daysToRender = useMemo(() => {
+    return selectedWeekday === "All Days" ? WEEKDAYS : [selectedWeekday];
+  }, [selectedWeekday]);
+
   const dayEvents = useMemo(() => {
     const days: Record<string, { slots: Record<number, CourseCardItem[]>; count: number; maxInHour: number }> = {};
-    WEEKDAYS.forEach((day) => {
+    daysToRender.forEach((day) => {
       const eventsInDay = courses.filter((c) => c.day === day);
       const slots: Record<number, CourseCardItem[]> = {};
       HOURS.forEach(h => slots[h] = []);
@@ -70,31 +76,35 @@ const TimelineView = ({
       days[day] = { slots, count: eventsInDay.length, maxInHour };
     });
     return days;
-  }, [courses]);
+  }, [courses, daysToRender]);
+
+  const totalGridWidth = HOURS.length * HOUR_WIDTH;
 
   return (
     <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col shadow-sm animate-in fade-in duration-500">
       {/* Time Header */}
       <div className="flex border-b border-slate-200 bg-white sticky top-0 z-30">
         <div className="w-28 shrink-0 border-r border-slate-200 p-4 flex flex-col justify-center bg-white z-40">
-          <span className="font-bold text-slate-400 text-[10px] uppercase tracking-widest">Schedule</span>
-          <span className="text-xs font-black text-slate-900">Weekly View</span>
+          <span className="font-bold text-slate-400 text-[10px] uppercase tracking-widest leading-none">Schedule</span>
+          <span className="text-xs font-black text-slate-900 mt-1">Weekly View</span>
         </div>
         <div 
           ref={headerScrollRef}
           className="flex-1 overflow-hidden flex pointer-events-none bg-slate-50/30"
         >
-          {HOURS.map((hour) => (
-            <div 
-              key={hour} 
-              className="shrink-0 border-r border-slate-200 p-3 text-[10px] font-bold text-slate-500 flex items-center justify-center"
-              style={{ width: HOUR_WIDTH }}
-            >
-              <div className="bg-white px-4 py-1.5 rounded-xl shadow-xs border border-slate-200 text-slate-700 font-black">
-                {hour % 12 === 0 ? 12 : hour % 12}:00 {hour >= 12 ? "PM" : "AM"}
+          <div className="flex" style={{ width: totalGridWidth }}>
+            {HOURS.map((hour) => (
+              <div 
+                key={hour} 
+                className="shrink-0 border-r border-slate-200 p-3 text-[10px] font-bold text-slate-500 flex items-center justify-center"
+                style={{ width: HOUR_WIDTH }}
+              >
+                <div className="bg-white px-4 py-1.5 rounded-xl shadow-xs border border-slate-200 text-slate-700 font-black">
+                  {hour % 12 === 0 ? 12 : hour % 12}:00 {hour >= 12 ? "PM" : "AM"}
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
 
@@ -104,12 +114,12 @@ const TimelineView = ({
         onScroll={handleScroll}
         className="flex-1 overflow-auto max-h-[750px] relative scroll-smooth bg-white"
       >
-        {WEEKDAYS.map((day) => {
-          const { slots, maxInHour } = dayEvents[day];
-          const height = maxInHour * SLOT_HEIGHT;
+        {daysToRender.map((day) => {
+          const { slots, maxInHour } = dayEvents[day] || { slots: {}, maxInHour: 1 };
+          const height = Math.max(1, maxInHour) * SLOT_HEIGHT;
 
           return (
-            <div key={day} className="flex border-b border-slate-200 last:border-0 group min-w-max relative">
+            <div key={day} className="flex border-b border-slate-200 last:border-0 group min-w-fit relative">
               {/* Day Label - Sticky column */}
               <div 
                 className="w-28 shrink-0 border-r border-slate-200 flex flex-col items-center justify-center bg-white group-hover:bg-slate-50 transition-colors sticky left-0 z-20"
@@ -117,19 +127,19 @@ const TimelineView = ({
               >
                 <span className="text-base font-black text-slate-800">{day}</span>
                 <div className="mt-1 px-2 py-0.5 rounded-full bg-slate-100 text-[9px] font-bold text-slate-500 uppercase">
-                  {dayEvents[day].count} {dayEvents[day].count === 1 ? 'Session' : 'Sessions'}
+                  {(dayEvents[day]?.count || 0)} {(dayEvents[day]?.count === 1 ? 'Session' : 'Sessions')}
                 </div>
               </div>
 
               {/* Grid Columns */}
-              <div className="flex-1 flex relative" style={{ width: HOURS.length * HOUR_WIDTH, height }}>
+              <div className="flex relative shrink-0" style={{ width: totalGridWidth, height }}>
                 {HOURS.map((hour, idx) => (
                   <div 
                     key={hour} 
                     className={`shrink-0 border-r border-slate-200/80 relative flex flex-col p-1.5 gap-1.5 ${idx % 2 === 0 ? 'bg-slate-50/20' : 'bg-white'}`}
                     style={{ width: HOUR_WIDTH, height }}
                   >
-                    {slots[hour].map((event) => {
+                    {slots[hour]?.map((event) => {
                       const isEnrolled = enrolledCourseIds.includes(event.id);
                       const colorStyle = COLOR_STYLES[courses.findIndex(c => c.id === event.id) % COLOR_STYLES.length];
                       const spotsColor = event.spots === 0 ? "#ef4444" : event.spots < 5 ? "#f59e0b" : "#10b981";

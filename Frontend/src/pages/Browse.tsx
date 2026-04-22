@@ -241,6 +241,8 @@ const Browse = () => {
     "timeline",
   );
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("All Categories");
+  const [selectedWeekday, setSelectedWeekday] = useState<string>("All Days");
   const [selectedCourse, setSelectedCourse] = useState<CourseCardItem | null>(
     null,
   );
@@ -422,15 +424,30 @@ const Browse = () => {
     }
   };
 
+  const categories = useMemo(() => {
+    const cats = new Set(courses.map((c) => c.type));
+    return ["All Categories", ...Array.from(cats)].sort();
+  }, [courses]);
+
+  const weekdays = ["All Days", ...WEEKDAY_OPTIONS];
+
   const filteredCourses = useMemo(() => {
-    return courses.filter(
-      (course) =>
+    return courses.filter((course) => {
+      const matchesSearch =
         course.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (course.code || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
         course.instructor.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        course.type.toLowerCase().includes(searchQuery.toLowerCase()),
-    );
-  }, [courses, searchQuery]);
+        course.type.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesCategory =
+        selectedCategory === "All Categories" || course.type === selectedCategory;
+
+      const matchesWeekday =
+        selectedWeekday === "All Days" || course.day === selectedWeekday;
+
+      return matchesSearch && matchesCategory && matchesWeekday;
+    });
+  }, [courses, searchQuery, selectedCategory, selectedWeekday]);
 
   const isEnrolledCourse = (courseId: number) =>
     enrolledCourseIds.includes(courseId);
@@ -658,7 +675,7 @@ const Browse = () => {
           </p>
         </div>
 
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-col lg:flex-row items-center gap-3 w-full md:w-auto">
           <div className="relative w-full sm:w-64">
             <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -666,11 +683,45 @@ const Browse = () => {
               placeholder="Search classes..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 text-sm rounded-full border border-slate-200 bg-white/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all outline-hidden"
+              className="w-full pl-9 pr-4 py-2 h-10 text-sm rounded-full border border-slate-200 bg-white/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all outline-hidden"
             />
           </div>
 
-          <div className="flex bg-slate-100 p-1 rounded-full w-full sm:w-auto">
+          <div className="relative w-full sm:w-auto">
+            <select
+              value={selectedCategory}
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              className="w-full sm:w-auto pl-4 pr-9 h-10 text-xs rounded-full border border-slate-200 bg-white/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all outline-hidden appearance-none cursor-pointer font-bold text-slate-600 shadow-sm"
+            >
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+            <div className="absolute right-3 top-0 bottom-0 flex items-center pointer-events-none">
+              <Icons.ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            </div>
+          </div>
+
+          <div className="relative w-full sm:w-auto">
+            <select
+              value={selectedWeekday}
+              onChange={(e) => setSelectedWeekday(e.target.value)}
+              className="w-full sm:w-auto pl-4 pr-9 h-10 text-xs rounded-full border border-slate-200 bg-white/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all outline-hidden appearance-none cursor-pointer font-bold text-slate-600 shadow-sm"
+            >
+              {weekdays.map((day) => (
+                <option key={day} value={day}>
+                  {day}
+                </option>
+              ))}
+            </select>
+            <div className="absolute right-3 top-0 bottom-0 flex items-center pointer-events-none">
+              <Icons.ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            </div>
+          </div>
+
+          <div className="flex bg-slate-100 p-1 rounded-full w-full sm:w-auto h-10">
             <button
               onClick={() => setActiveView("timeline")}
               className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
@@ -715,6 +766,7 @@ const Browse = () => {
           courses={filteredCourses}
           onEventClick={handleCourseSelect}
           enrolledCourseIds={enrolledCourseIds}
+          selectedWeekday={selectedWeekday}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -846,13 +898,17 @@ const Browse = () => {
                 <Icons.Search className="w-6 h-6" />
               </div>
               <p className="text-slate-500">
-                No classes found matching "{searchQuery}"
+                No classes found matching your criteria.
               </p>
               <button
-                onClick={() => setSearchQuery("")}
+                onClick={() => {
+                  setSearchQuery("");
+                  setSelectedCategory("All Categories");
+                  setSelectedWeekday("All Days");
+                }}
                 className="text-indigo-600 font-semibold text-sm mt-2 hover:underline"
               >
-                Clear search
+                Clear all filters
               </button>
             </div>
           )}
