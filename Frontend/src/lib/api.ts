@@ -355,6 +355,21 @@ export type UserAnalyticsResponse = {
   };
 };
 
+export type UserListItem = {
+  id: number;
+  name: string;
+  email: string;
+  avatar_url?: string;
+  role: string;
+};
+
+export type ListUsersResponse = {
+  users: UserListItem[];
+};
+
+export const listStudentsRequest = (token: string) =>
+  authRequest<ListUsersResponse>("/manager/students", "GET", token);
+
 export const getUserAnalyticsRequest = (
   token: string,
   userId: number,

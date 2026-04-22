@@ -23,19 +23,35 @@ const Navbar = () => {
   const [isPreviewInstructor, setIsPreviewInstructor] = useState(
     sessionStorage.getItem("instructor_preview") === "true",
   );
+  const [isPreviewManager, setIsPreviewManager] = useState(
+    sessionStorage.getItem("manager_preview") === "true",
+  );
 
   useEffect(() => {
     if (location.pathname.startsWith("/instructor")) {
       sessionStorage.setItem("instructor_preview", "true");
       setIsPreviewInstructor(true);
     }
+    if (location.pathname.startsWith("/manager")) {
+      sessionStorage.setItem("manager_preview", "true");
+      setIsPreviewManager(true);
+    }
   }, [location.pathname]);
 
-  const isAuthenticated = realIsAuthenticated || isPreviewInstructor;
-  const role = isPreviewInstructor ? "instructor" : realRole;
+  const isAuthenticated =
+    realIsAuthenticated || isPreviewInstructor || isPreviewManager;
+  const role = isPreviewManager
+    ? "manager"
+    : isPreviewInstructor
+      ? "instructor"
+      : realRole;
 
   const [profileName, setProfileName] = useState(
-    isPreviewInstructor ? "Instructor One" : "",
+    isPreviewManager
+      ? "Manager Demo"
+      : isPreviewInstructor
+        ? "Instructor One"
+        : "",
   );
   const [profileAvatarUrl, setProfileAvatarUrl] = useState("");
 
@@ -92,7 +108,9 @@ const Navbar = () => {
 
   const handleLogout = () => {
     sessionStorage.removeItem("instructor_preview");
+    sessionStorage.removeItem("manager_preview");
     setIsPreviewInstructor(false);
+    setIsPreviewManager(false);
     navigate("/");
     setTimeout(() => {
       logout();
@@ -112,8 +130,13 @@ const Navbar = () => {
               FitFlow
             </span>
             {isPreviewInstructor && (
-              <Badge className="bg-indigo-100 text-indigo-700 hidden sm:inline-flex">
+              <Badge className="bg-indigo-100 text-indigo-700 hidden sm:inline-flex ml-2">
                 Instructor Demo
+              </Badge>
+            )}
+            {isPreviewManager && (
+              <Badge className="bg-emerald-100 text-emerald-700 hidden sm:inline-flex ml-2">
+                Manager Demo
               </Badge>
             )}
           </Link>
@@ -143,6 +166,19 @@ const Navbar = () => {
               >
                 Dashboard
               </NavLink>
+            ) : role === "manager" || role === "supermanager" ? (
+              <NavLink
+                to="/manager/dashboard"
+                className={({ isActive }) =>
+                  `px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    isActive
+                      ? "bg-white text-indigo-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`
+                }
+              >
+                Dashboard
+              </NavLink>
             ) : (
               <NavLink
                 to="/my-schedule"
@@ -160,6 +196,19 @@ const Navbar = () => {
           </div>
 
           <div className="flex items-center gap-4">
+            {!isAuthenticated && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-[10px] uppercase tracking-widest font-black"
+                onClick={() => {
+                  sessionStorage.setItem("manager_preview", "true");
+                  window.location.reload();
+                }}
+              >
+                Dev: Manager View
+              </Button>
+            )}
             {isAuthenticated ? (
               <>
                 <NavLink

@@ -6,6 +6,7 @@ import Browse from "./pages/Browse";
 import MySchedule from "./pages/MySchedule";
 import Profile from "./pages/Profile";
 import InstructorDashboard from "./pages/InstructorDashboard";
+import ManagerDashboard from "./pages/ManagerDashboard";
 import InstructorProfile from "./pages/InstructorProfile";
 import MainLayout from "./layouts/MainLayout";
 import AuthGuard from "./components/AuthGuard";
@@ -31,6 +32,7 @@ function App() {
           {/* Public Routes */}
           <Route path="/courses" element={<Browse />} />
           <Route path="/instructor/dashboard" element={<InstructorDashboard />} />
+          <Route path="/manager/dashboard" element={<ManagerDashboard />} />
           <Route path="/instructor/profile" element={<InstructorProfile />} />
           <Route path="/" element={<Navigate to="/courses" replace />} />
 
