@@ -4,7 +4,7 @@ import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
 import Modal from "../components/ui/Modal";
 import { Icons } from "../lib/icons";
-import CalendarView from "../components/CalendarView";
+import TimelineView from "../components/TimelineView";
 import CourseDetailsModal, {
   type CourseCardItem,
 } from "../components/CourseDetailsModal";
@@ -237,7 +237,9 @@ const mapClassToCard = (course: BackendClass): CourseCardItem => ({
 const Browse = () => {
   const navigate = useNavigate();
   const { isAuthenticated, token, userId, role } = useAuthStore();
-  const [activeView, setActiveView] = useState<"grid" | "calendar">("grid");
+  const [activeView, setActiveView] = useState<"grid" | "timeline">(
+    "timeline",
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCourse, setSelectedCourse] = useState<CourseCardItem | null>(
     null,
@@ -670,6 +672,17 @@ const Browse = () => {
 
           <div className="flex bg-slate-100 p-1 rounded-full w-full sm:w-auto">
             <button
+              onClick={() => setActiveView("timeline")}
+              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                activeView === "timeline"
+                  ? "bg-white text-indigo-600 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <Icons.Clock className="w-3.5 h-3.5" />
+              Timeline
+            </button>
+            <button
               onClick={() => setActiveView("grid")}
               className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
                 activeView === "grid"
@@ -679,17 +692,6 @@ const Browse = () => {
             >
               <Icons.Grid className="w-3.5 h-3.5" />
               Cards
-            </button>
-            <button
-              onClick={() => setActiveView("calendar")}
-              className={`flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
-                activeView === "calendar"
-                  ? "bg-white text-indigo-600 shadow-sm"
-                  : "text-slate-500 hover:text-slate-700"
-              }`}
-            >
-              <Icons.Calendar className="w-3.5 h-3.5" />
-              Calendar
             </button>
           </div>
 
@@ -708,7 +710,13 @@ const Browse = () => {
         <Card className="p-8 text-center border-dashed border-2 bg-transparent text-slate-500">
           Loading classes...
         </Card>
-      ) : activeView === "grid" ? (
+      ) : activeView === "timeline" ? (
+        <TimelineView
+          courses={filteredCourses}
+          onEventClick={handleCourseSelect}
+          enrolledCourseIds={enrolledCourseIds}
+        />
+      ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredCourses.length > 0 ? (
             filteredCourses.map((course) => {
@@ -849,12 +857,6 @@ const Browse = () => {
             </div>
           )}
         </div>
-      ) : (
-        <CalendarView
-          courses={filteredCourses}
-          onEventClick={handleCourseSelect}
-          enrolledCourseIds={enrolledCourseIds}
-        />
       )}
 
       <CourseDetailsModal
