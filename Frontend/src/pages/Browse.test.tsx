@@ -35,10 +35,6 @@ vi.mock("react-hot-toast", () => {
   };
 });
 
-vi.mock("../components/CalendarView", () => ({
-  default: () => <div>calendar-view</div>,
-}));
-
 vi.mock("../components/CourseDetailsModal", () => ({
   default: () => null,
 }));
@@ -84,8 +80,12 @@ describe("Browse page enrollment window display", () => {
 
     await screen.findByText("Morning Flow Yoga");
 
+    // Switch to Cards view
+    const cardsButton = screen.getByRole("button", { name: /Cards/i });
+    cardsButton.click();
+
     expect(
-      screen.getByRole("button", { name: "Not open yet" }),
+      await screen.findByRole("button", { name: "Not open yet" }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/Opens in \d+h/)).not.toBeInTheDocument();
   });
@@ -106,8 +106,12 @@ describe("Browse page enrollment window display", () => {
 
     await screen.findByText("Morning Flow Yoga");
 
+    // Switch to Cards view
+    const cardsButton = screen.getByRole("button", { name: /Cards/i });
+    cardsButton.click();
+
     expect(
-      screen.getByRole("button", { name: /Opens in 1h/i }),
+      await screen.findByRole("button", { name: /Opens in 1h/i }),
     ).toBeInTheDocument();
   });
 });
