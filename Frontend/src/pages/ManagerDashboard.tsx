@@ -9,9 +9,10 @@ import { useAuthStore } from "../store/authStore";
 import toast from "react-hot-toast";
 import { 
   listStudentsRequest, 
-  getUserEnrollmentsRequest, 
+  getManagerUserEnrollmentsRequest,
   type UserListItem, 
-  type BackendClass 
+  type BackendClass,
+  type ManagerEnrollmentItem,
 } from "../lib/api";
 
 const ManagerDashboard = () => {
@@ -22,29 +23,19 @@ const ManagerDashboard = () => {
   
   // History Modal State
   const [selectedStudent, setSelectedStudent] = useState<UserListItem | null>(null);
-  const [history, setHistory] = useState<BackendClass[]>([]);
+  const [history, setHistory] = useState<ManagerEnrollmentItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
-  const isDemo = sessionStorage.getItem("manager_preview") === "true";
-
   const loadStudents = async () => {
-    if (!token && !isDemo) return;
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     
     setLoading(true);
     try {
-      if (isDemo) {
-        // Mock data for Demo
-        setStudents([
-          { id: 101, name: "Alice Johnson", email: "alice@example.com", role: "student" },
-          { id: 102, name: "Bob Smith", email: "bob@example.com", role: "student" },
-          { id: 103, name: "Charlie Davis", email: "charlie@example.com", role: "student" },
-          { id: 104, name: "Diana Prince", email: "diana@example.com", role: "student" },
-          { id: 105, name: "Ethan Hunt", email: "ethan@example.com", role: "student" },
-        ]);
-      } else {
-        const data = await listStudentsRequest(token!);
-        setStudents(data.users || []);
-      }
+      const data = await listStudentsRequest(token);
+      setStudents((data.users || []).filter((user) => user.role === "student"));
     } catch (error) {
       console.error("Failed to load students", error);
       toast.error("Failed to load student list.");
@@ -54,8 +45,8 @@ const ManagerDashboard = () => {
   };
 
   useEffect(() => {
-    loadStudents();
-  }, [token, isDemo]);
+    void loadStudents();
+  }, [token]);
 
   const filteredStudents = useMemo(() => {
     return students.filter(s => 
@@ -70,16 +61,13 @@ const ManagerDashboard = () => {
     setHistory([]);
     
     try {
-      if (isDemo) {
-        // Mock history for Demo
-        setHistory([
-          { id: 1, name: "Morning Yoga", course_code: "YOG101", description: "Vinyasa flow", start_time: "08:00", end_time: "09:00", capacity: 20, duration: 60, category: "Yoga", weekday: "Mon", spot: 5 },
-          { id: 2, name: "HIIT Blast", course_code: "HIT202", description: "High intensity", start_time: "17:00", end_time: "18:00", capacity: 15, duration: 60, category: "HIIT", weekday: "Wed", spot: 2 },
-        ]);
-      } else {
-        const data = await getUserEnrollmentsRequest(token!, student.id);
-        setHistory(data.courses || []);
+      if (!token) {
+        toast.error("Please log in again.");
+        return;
       }
+
+      const data = await getManagerUserEnrollmentsRequest(token, student.id);
+      setHistory(data.enrollments || []);
     } catch (error) {
       console.error("Failed to load history", error);
       toast.error("Failed to load class history.");
@@ -151,7 +139,6 @@ const ManagerDashboard = () => {
                       <td className="px-6 py-4 text-right">
                         <Button 
                           variant="ghost" 
-                          size="sm"
                           onClick={() => viewHistory(student)}
                           className="text-indigo-600 hover:bg-indigo-50 font-bold text-xs rounded-xl px-4 py-2"
                         >
@@ -189,15 +176,16 @@ const ManagerDashboard = () => {
 
           <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 border-b border-slate-100 pb-2">Enrollment History</h3>
           
-          <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+          <div className="space-y-3 max-h-100 overflow-y-auto pr-2 custom-scrollbar">
             {historyLoading ? (
               <div className="py-12 text-center text-slate-400 italic">Loading history...</div>
             ) : history.length > 0 ? (
-              history.map((course) => (
-                <div key={course.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 group hover:border-indigo-200 transition-all">
+              history.map((enrollment) => {
+                const course: BackendClass = enrollment.course;
+                return (
+                <div key={enrollment.id} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 group hover:border-indigo-200 transition-all">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-xl shadow-xs">
-                      {/* We don't have images in BackendClass but we can map or use generic */}
                       🏃
                     </div>
                     <div>
@@ -207,11 +195,25 @@ const ManagerDashboard = () => {
                       </p>
                     </div>
                   </div>
-                  <Badge className="bg-white text-indigo-600 border border-slate-200 font-bold px-3 py-1">
-                    {course.category}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-white text-indigo-600 border border-slate-200 font-bold px-3 py-1">
+                      {course.category || "General"}
+                    </Badge>
+                    <Badge
+                      className={
+                        enrollment.status === "attended"
+                          ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+                          : enrollment.status === "missed"
+                            ? "bg-rose-50 text-rose-700 border border-rose-100"
+                            : "bg-slate-100 text-slate-600"
+                      }
+                    >
+                      {enrollment.status}
+                    </Badge>
+                  </div>
                 </div>
-              ))
+                );
+              })
             ) : (
               <div className="py-12 text-center bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 text-slate-400 italic">
                 No classes attended yet.
