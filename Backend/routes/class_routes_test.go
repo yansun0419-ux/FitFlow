@@ -396,6 +396,36 @@ func TestListClassesEndpoint_OK(t *testing.T) {
 	}
 }
 
+func TestGetUserEnrolledClassesEndpoint_OK(t *testing.T) {
+	setupRouteTestDB(t)
+	seedRouteRole(t, 1, "Student")
+	user := seedRouteUser(t, 1, "secret123")
+	course := seedRouteCourse(t, "Yoga", 4, "Wellness")
+	seedRouteEnrollmentAt(t, user.ID, course.ID, model.EnrollmentStatusEnrolled, time.Now())
+	token := issueRouteToken(t, user.Email, "secret123")
+	router := routes.SetupRouter()
+
+	path := fmt.Sprintf("/users/%d/enrollments", user.ID)
+	recorder := performJSONRequest(t, router, http.MethodGet, path, token, nil)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d with body %s", recorder.Code, recorder.Body.String())
+	}
+
+	var response struct {
+		Courses []model.Course `json:"courses"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to decode response: %v", err)
+	}
+
+	if len(response.Courses) != 1 {
+		t.Fatalf("expected 1 enrolled course, got %d", len(response.Courses))
+	}
+	if response.Courses[0].ID != course.ID {
+		t.Fatalf("expected course %d, got %d", course.ID, response.Courses[0].ID)
+	}
+}
+
 func TestGetUserAnalyticsEndpoint_OK(t *testing.T) {
 	setupRouteTestDB(t)
 	seedRouteRole(t, 1, "Student")

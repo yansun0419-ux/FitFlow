@@ -85,9 +85,6 @@ func ListInstructorCourseEnrollments(instructorID uint, courseID uint) ([]model.
 	if err != nil {
 		return nil, err
 	}
-	if err := dao.SyncEndedEnrollmentsToAttended(); err != nil {
-		return nil, err
-	}
 
 	course, err := dao.GetCourseByID(courseID)
 	if err != nil {
@@ -129,6 +126,9 @@ func UpdateEnrollmentStatusByInstructor(instructorID, courseID, userID uint, sta
 	}
 	if !ok {
 		return errors.New("enrollment not found")
+	}
+	if status == model.EnrollmentStatusAttended {
+		return dao.BackfillUserDailyActivityFromEnrollments(userID)
 	}
 	return nil
 }
