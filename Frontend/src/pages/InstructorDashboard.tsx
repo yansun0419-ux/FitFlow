@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Card from "../components/ui/Card";
 import Button from "../components/ui/Button";
 import Badge from "../components/ui/Badge";
@@ -68,6 +68,30 @@ const mapEnrollmentToStudent = (item: InstructorRosterItem): LocalStudent => ({
   status: normalizeStatus(item.status),
 });
 
+const normalizeWeekday = (weekday: string): string => {
+  const short = weekday.trim().slice(0, 3).toLowerCase();
+  if (short === "mon") return "Mon";
+  if (short === "tue") return "Tue";
+  if (short === "wed") return "Wed";
+  if (short === "thu") return "Thu";
+  if (short === "fri") return "Fri";
+  if (short === "sat") return "Sat";
+  if (short === "sun") return "Sun";
+  return weekday;
+};
+
+const formatClock = (raw: string): string => {
+  const [hourText = "", minuteText = ""] = raw.split(":");
+  const hour = Number.parseInt(hourText, 10);
+  const minute = Number.parseInt(minuteText, 10);
+
+  if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
+    return raw;
+  }
+
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+};
+
 const InstructorDashboard = () => {
   const { token } = useAuthStore();
   const [courses, setCourses] = useState<InstructorCourseSummary[]>([]);
@@ -78,30 +102,6 @@ const InstructorDashboard = () => {
   const [savingAttendance, setSavingAttendance] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newStudentId, setNewStudentId] = useState("");
-
-  const loadCourses = async () => {
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const data = await listInstructorCoursesRequest(token);
-      const nextCourses = data.courses || [];
-      setCourses(nextCourses);
-      if (!selectedClassId && nextCourses.length > 0) {
-        setSelectedClassId(nextCourses[0].id);
-      }
-      await loadAllRosters(nextCourses.map((course) => course.id));
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Failed to load courses";
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const loadRoster = async (courseId: number) => {
     if (!token) {
@@ -124,7 +124,7 @@ const InstructorDashboard = () => {
     }
   };
 
-  const loadAllRosters = async (courseIds: number[]) => {
+  const loadAllRosters = useCallback(async (courseIds: number[]) => {
     if (!token || courseIds.length === 0) {
       return;
     }
@@ -155,11 +155,35 @@ const InstructorDashboard = () => {
     } finally {
       setRosterLoading(false);
     }
-  };
+  }, [token]);
+
+  const loadCourses = useCallback(async () => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const data = await listInstructorCoursesRequest(token);
+      const nextCourses = data.courses || [];
+      setCourses(nextCourses);
+      if (!selectedClassId && nextCourses.length > 0) {
+        setSelectedClassId(nextCourses[0].id);
+      }
+      await loadAllRosters(nextCourses.map((course) => course.id));
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Failed to load courses";
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, selectedClassId, loadAllRosters]);
 
   useEffect(() => {
     void loadCourses();
-  }, [token]);
+  }, [loadCourses]);
 
   const classes: ClassData[] = useMemo(() => {
     return courses.map((course) => {
@@ -167,7 +191,7 @@ const InstructorDashboard = () => {
       return {
         id: course.id,
         name: course.name,
-        time: `${course.start_time} - ${course.end_time}`,
+        time: `${normalizeWeekday(course.weekday)}, ${formatClock(course.start_time)} - ${formatClock(course.end_time)}`,
         capacity: course.capacity,
         status: inferClassStatus(course),
         students,
