@@ -700,7 +700,7 @@ const Browse = () => {
               ))}
             </select>
             <div className="absolute right-3 top-0 bottom-0 flex items-center pointer-events-none">
-              <Icons.ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-slate-400 text-xs">v</span>
             </div>
           </div>
 
@@ -717,7 +717,7 @@ const Browse = () => {
               ))}
             </select>
             <div className="absolute right-3 top-0 bottom-0 flex items-center pointer-events-none">
-              <Icons.ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+              <span className="text-slate-400 text-xs">v</span>
             </div>
           </div>
 

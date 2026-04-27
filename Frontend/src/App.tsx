@@ -31,15 +31,28 @@ function App() {
         <Route element={<MainLayout />}>
           {/* Public Routes */}
           <Route path="/courses" element={<Browse />} />
-          <Route path="/instructor/dashboard" element={<InstructorDashboard />} />
-          <Route path="/manager/dashboard" element={<ManagerDashboard />} />
-          <Route path="/instructor/profile" element={<InstructorProfile />} />
           <Route path="/" element={<Navigate to="/courses" replace />} />
 
           {/* Protected Routes */}
           <Route element={<AuthGuard />}>
             <Route path="/my-schedule" element={<MySchedule />} />
             <Route path="/profile" element={<Profile />} />
+          </Route>
+
+          <Route
+            element={<AuthGuard allowedRoles={["instructor"]} />}
+          >
+            <Route
+              path="/instructor/dashboard"
+              element={<InstructorDashboard />}
+            />
+            <Route path="/instructor/profile" element={<InstructorProfile />} />
+          </Route>
+
+          <Route
+            element={<AuthGuard allowedRoles={["manager", "supermanager"]} />}
+          >
+            <Route path="/manager/dashboard" element={<ManagerDashboard />} />
           </Route>
         </Route>
 
