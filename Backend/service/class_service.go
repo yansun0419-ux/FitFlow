@@ -185,9 +185,6 @@ func ListClassEnrollments(courseID uint) ([]model.Enrollment, error) {
 	if _, err := dao.GetCourseByID(courseID); err != nil {
 		return nil, errors.New("class not found")
 	}
-	if err := dao.SyncEndedEnrollmentsToAttended(); err != nil {
-		return nil, err
-	}
 	return dao.ListEnrollmentsByClass(courseID)
 }
 
@@ -240,9 +237,6 @@ func GetUserEnrolledClasses(userID uint) ([]model.Course, error) {
 	if _, err := dao.GetUserByID(userID); err != nil {
 		return nil, errors.New("user not found")
 	}
-	if err := dao.SyncEndedEnrollmentsToAttended(); err != nil {
-		return nil, err
-	}
 
 	courses, err := dao.ListEnrolledCoursesByUser(userID)
 	if err != nil {
@@ -262,9 +256,6 @@ func GetUserEnrolledClasses(userID uint) ([]model.Course, error) {
 func GetUserAnalytics(userID uint, rangeKey string) (*model.UserAnalyticsResponse, error) {
 	if _, err := dao.GetUserByID(userID); err != nil {
 		return nil, errors.New("user not found")
-	}
-	if err := dao.SyncEndedEnrollmentsToAttended(); err != nil {
-		return nil, err
 	}
 
 	if err := dao.BackfillUserDailyActivityFromEnrollments(userID); err != nil {

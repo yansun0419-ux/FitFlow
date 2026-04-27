@@ -10,14 +10,6 @@ import (
 	"gorm.io/gorm/clause"
 )
 
-// SyncEndedEnrollmentsToAttended marks enrollments as attended after a 15-minute grace period post class end.
-func SyncEndedEnrollmentsToAttended() error {
-	cutoff := time.Now().Add(-15 * time.Minute)
-	return db.DB.Model(&model.Enrollment{}).
-		Where("status = ? AND session_id IN (SELECT id FROM ClassSession WHERE end_at < ?)", model.EnrollmentStatusEnrolled, cutoff).
-		Update("status", model.EnrollmentStatusAttended).Error
-}
-
 // GetCourseByID retrieves a course by ID.
 func GetCourseByID(id uint) (*model.Course, error) {
 	var class model.Course
@@ -127,14 +119,12 @@ func ListEnrollmentsByClass(courseID uint) ([]model.Enrollment, error) {
 	return enrollments, nil
 }
 
-// ListEnrolledCoursesByUser returns upcoming courses a user is enrolled in.
-// Only includes enrollments linked to scheduled sessions that haven't happened yet.
+// ListEnrolledCoursesByUser returns courses a user is currently enrolled in.
 func ListEnrolledCoursesByUser(userID uint) ([]model.Course, error) {
 	var courses []model.Course
 	if err := db.DB.Joins("INNER JOIN Enrollment ON Enrollment.course_id = Course.id").
-		Joins("INNER JOIN ClassSession ON ClassSession.id = Enrollment.session_id").
-		Where("Enrollment.user_id = ? AND Enrollment.status = ? AND ClassSession.session_date >= DATE('now')", userID, "enrolled").
-		Order("ClassSession.session_date ASC, Course.start_time ASC").
+		Where("Enrollment.user_id = ? AND Enrollment.status = ?", userID, model.EnrollmentStatusEnrolled).
+		Order("Course.start_time ASC").
 		Find(&courses).Error; err != nil {
 		return nil, err
 	}

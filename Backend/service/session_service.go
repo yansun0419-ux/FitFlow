@@ -31,9 +31,9 @@ func GenerateClassSessions(courseID uint, numWeeks int) error {
 		return fmt.Errorf("invalid weekday: %s", course.Weekday)
 	}
 
-	// Generate sessions starting from today
-	today := time.Now().UTC()
-	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.UTC)
+	// Generate sessions starting from today in the server's local timezone.
+	today := time.Now()
+	today = time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, time.Local)
 
 	// Find the first occurrence of the target weekday from today
 	firstSessionDate := getNextOccurrenceOfWeekday(today, targetWeekday)
@@ -106,5 +106,5 @@ func combineDateTime(date time.Time, timeOnly model.TimeOnly) time.Time {
 		return date
 	}
 	hour, minute, second := timeOnly.Time.Clock()
-	return time.Date(date.Year(), date.Month(), date.Day(), hour, minute, second, 0, date.Location())
+	return time.Date(date.Year(), date.Month(), date.Day(), hour, minute, second, 0, time.Local)
 }

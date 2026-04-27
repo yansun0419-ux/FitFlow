@@ -367,7 +367,7 @@ func TestListClasses_ReturnsSpot(t *testing.T) {
 	}
 }
 
-func TestListClassEnrollments_AutoMarksEndedEnrollmentsAsAttended(t *testing.T) {
+func TestListClassEnrollments_DoesNotAutoMarkEndedEnrollmentsAsAttended(t *testing.T) {
 	setupClassServiceTestDB(t)
 
 	user := seedRoleAndUser(t, 1)
@@ -382,16 +382,16 @@ func TestListClassEnrollments_AutoMarksEndedEnrollmentsAsAttended(t *testing.T) 
 	if len(enrollments) != 1 {
 		t.Fatalf("expected 1 enrollment, got %d", len(enrollments))
 	}
-	if enrollments[0].Status != model.EnrollmentStatusAttended {
-		t.Fatalf("expected status attended, got %s", enrollments[0].Status)
+	if enrollments[0].Status != model.EnrollmentStatusEnrolled {
+		t.Fatalf("expected status enrolled, got %s", enrollments[0].Status)
 	}
 
 	var enrollment model.Enrollment
 	if err := db.DB.Where("user_id = ? AND course_id = ?", user.ID, course.ID).First(&enrollment).Error; err != nil {
 		t.Fatalf("failed to reload enrollment: %v", err)
 	}
-	if enrollment.Status != model.EnrollmentStatusAttended {
-		t.Fatalf("expected DB status attended, got %s", enrollment.Status)
+	if enrollment.Status != model.EnrollmentStatusEnrolled {
+		t.Fatalf("expected DB status enrolled, got %s", enrollment.Status)
 	}
 }
 
