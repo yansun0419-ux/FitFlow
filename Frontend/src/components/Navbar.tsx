@@ -1,98 +1,30 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { NavLink, useNavigate, Link, useLocation } from "react-router-dom";
+import { useMemo } from "react";
+import { NavLink, useNavigate, Link } from "react-router-dom";
 import { Icons } from "../lib/icons";
 import Button from "./ui/Button";
-import Badge from "./ui/Badge";
 import { useAuthStore } from "../store/authStore";
 import toast from "react-hot-toast";
-import { getProfileRequest } from "../lib/api";
-
-const normalizeFromApi = (value: string | undefined) => (value || "").trim();
 
 const Navbar = () => {
   const {
-    isAuthenticated: realIsAuthenticated,
+    isAuthenticated,
     logout,
-    token,
-    role: realRole,
+    role,
   } = useAuthStore();
   const navigate = useNavigate();
-  const location = useLocation();
-
-  // Persistence logic for the instructor preview
-  const [isPreviewInstructor, setIsPreviewInstructor] = useState(
-    sessionStorage.getItem("instructor_preview") === "true",
-  );
-
-  useEffect(() => {
-    if (location.pathname.startsWith("/instructor")) {
-      sessionStorage.setItem("instructor_preview", "true");
-      setIsPreviewInstructor(true);
-    }
-  }, [location.pathname]);
-
-  const isAuthenticated = realIsAuthenticated || isPreviewInstructor;
-  const role = isPreviewInstructor ? "instructor" : realRole;
-
-  const [profileName, setProfileName] = useState(
-    isPreviewInstructor ? "Instructor One" : "",
-  );
-  const [profileAvatarUrl, setProfileAvatarUrl] = useState("");
+  const profileName =
+    role === "instructor"
+      ? "Instructor"
+      : role === "manager" || role === "supermanager"
+        ? "Manager"
+        : "User";
 
   const avatarFallback = useMemo(() => {
-    const name = profileName.trim() || "User";
+    const name = profileName || "User";
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=6366f1&color=ffffff`;
   }, [profileName]);
 
-  const avatarPreview = profileAvatarUrl.trim() || avatarFallback;
-
-  const loadNavbarProfile = useCallback(async () => {
-    if (isPreviewInstructor) {
-      setProfileName("Instructor One");
-      return;
-    }
-
-    if (!token) {
-      setProfileName("");
-      setProfileAvatarUrl("");
-      return;
-    }
-
-    try {
-      const data = await getProfileRequest(token);
-      setProfileName(normalizeFromApi(data.name));
-      setProfileAvatarUrl(normalizeFromApi(data.avatar_url));
-    } catch {
-      setProfileName("");
-      setProfileAvatarUrl("");
-    }
-  }, [token, isPreviewInstructor]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      setProfileName("");
-      setProfileAvatarUrl("");
-      return;
-    }
-
-    void loadNavbarProfile();
-  }, [isAuthenticated, loadNavbarProfile]);
-
-  useEffect(() => {
-    const handleProfileUpdated = () => {
-      void loadNavbarProfile();
-    };
-
-    window.addEventListener("profile-updated", handleProfileUpdated);
-
-    return () => {
-      window.removeEventListener("profile-updated", handleProfileUpdated);
-    };
-  }, [loadNavbarProfile]);
-
   const handleLogout = () => {
-    sessionStorage.removeItem("instructor_preview");
-    setIsPreviewInstructor(false);
     navigate("/");
     setTimeout(() => {
       logout();
@@ -111,11 +43,6 @@ const Navbar = () => {
             <span className="text-xl font-bold bg-clip-text text-transparent bg-linear-to-r from-violet-600 to-indigo-600">
               FitFlow
             </span>
-            {isPreviewInstructor && (
-              <Badge className="bg-indigo-100 text-indigo-700 hidden sm:inline-flex">
-                Instructor Demo
-              </Badge>
-            )}
           </Link>
           <div className="flex items-center gap-2 bg-slate-100/50 p-1 rounded-xl">
             <NavLink
@@ -133,6 +60,19 @@ const Navbar = () => {
             {role === "instructor" ? (
               <NavLink
                 to="/instructor/dashboard"
+                className={({ isActive }) =>
+                  `px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    isActive
+                      ? "bg-white text-indigo-600 shadow-sm"
+                      : "text-slate-500 hover:text-slate-700"
+                  }`
+                }
+              >
+                Dashboard
+              </NavLink>
+            ) : role === "manager" || role === "supermanager" ? (
+              <NavLink
+                to="/manager/dashboard"
                 className={({ isActive }) =>
                   `px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                     isActive
@@ -175,7 +115,7 @@ const Navbar = () => {
                   }
                 >
                   <img
-                    src={avatarPreview}
+                    src={avatarFallback}
                     alt="Profile"
                     onError={(event) => {
                       event.currentTarget.src = avatarFallback;

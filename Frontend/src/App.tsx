@@ -6,6 +6,7 @@ import Browse from "./pages/Browse";
 import MySchedule from "./pages/MySchedule";
 import Profile from "./pages/Profile";
 import InstructorDashboard from "./pages/InstructorDashboard";
+import ManagerDashboard from "./pages/ManagerDashboard";
 import InstructorProfile from "./pages/InstructorProfile";
 import MainLayout from "./layouts/MainLayout";
 import AuthGuard from "./components/AuthGuard";
@@ -30,14 +31,28 @@ function App() {
         <Route element={<MainLayout />}>
           {/* Public Routes */}
           <Route path="/courses" element={<Browse />} />
-          <Route path="/instructor/dashboard" element={<InstructorDashboard />} />
-          <Route path="/instructor/profile" element={<InstructorProfile />} />
           <Route path="/" element={<Navigate to="/courses" replace />} />
 
           {/* Protected Routes */}
           <Route element={<AuthGuard />}>
             <Route path="/my-schedule" element={<MySchedule />} />
             <Route path="/profile" element={<Profile />} />
+          </Route>
+
+          <Route
+            element={<AuthGuard allowedRoles={["instructor"]} />}
+          >
+            <Route
+              path="/instructor/dashboard"
+              element={<InstructorDashboard />}
+            />
+            <Route path="/instructor/profile" element={<InstructorProfile />} />
+          </Route>
+
+          <Route
+            element={<AuthGuard allowedRoles={["manager", "supermanager"]} />}
+          >
+            <Route path="/manager/dashboard" element={<ManagerDashboard />} />
           </Route>
         </Route>
 

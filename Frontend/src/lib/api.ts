@@ -226,6 +226,26 @@ export const getUserEnrollmentsRequest = (token: string, userId: number) =>
     token,
   );
 
+export type ManagerEnrollmentItem = {
+  id: number;
+  user_id: number;
+  course_id: number;
+  status: "enrolled" | "attended" | "missed" | string;
+  enroll_time: string;
+  course: BackendClass;
+};
+
+export type ManagerUserEnrollmentsResponse = {
+  enrollments: ManagerEnrollmentItem[];
+};
+
+export const getManagerUserEnrollmentsRequest = (token: string, userId: number) =>
+  authRequest<ManagerUserEnrollmentsResponse>(
+    `/manager/users/${userId}/enrollments`,
+    "GET",
+    token,
+  );
+
 export type ClassUpsertRequest = {
   name: string;
   course_code: string;
@@ -335,6 +355,18 @@ export const updateInstructorEnrollmentStatusRequest = (
     { user_id: userId, status },
   );
 
+export const addInstructorEnrollmentRequest = (
+  token: string,
+  courseId: number,
+  userId: number,
+) =>
+  authRequest<{ message: string }>(
+    `/instructor/courses/${courseId}/enrollments`,
+    "POST",
+    token,
+    { user_id: userId },
+  );
+
 export type UserAnalyticsResponse = {
   analytics: {
     user_id: number;
@@ -354,6 +386,21 @@ export type UserAnalyticsResponse = {
     }>;
   };
 };
+
+export type UserListItem = {
+  id: number;
+  name: string;
+  email: string;
+  avatar_url?: string;
+  role: string;
+};
+
+export type ListUsersResponse = {
+  users: UserListItem[];
+};
+
+export const listStudentsRequest = (token: string) =>
+  authRequest<ListUsersResponse>("/manager/users", "GET", token);
 
 export const getUserAnalyticsRequest = (
   token: string,

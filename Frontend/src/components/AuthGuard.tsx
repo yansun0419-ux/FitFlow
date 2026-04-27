@@ -1,8 +1,13 @@
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
+import type { Role } from "../store/authStore";
 
-const AuthGuard = () => {
-  const { isAuthenticated } = useAuthStore();
+type AuthGuardProps = {
+  allowedRoles?: Role[];
+};
+
+const AuthGuard = ({ allowedRoles }: AuthGuardProps) => {
+  const { isAuthenticated, role } = useAuthStore();
   const location = useLocation();
 
   if (!isAuthenticated) {
@@ -10,6 +15,10 @@ const AuthGuard = () => {
     // trying to go to when they were redirected. This allows us to send them
     // along to that page after they login, which is a nicer user experience.
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (allowedRoles && (!role || !allowedRoles.includes(role))) {
+    return <Navigate to="/" replace />;
   }
 
   return <Outlet />;
