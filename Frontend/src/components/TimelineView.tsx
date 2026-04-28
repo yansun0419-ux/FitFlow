@@ -1,4 +1,4 @@
-import { useMemo, useRef, useEffect } from "react";
+import { useMemo } from "react";
 import { Icons } from "../lib/icons";
 import type { CourseCardItem } from "./CourseDetailsModal";
 
@@ -20,7 +20,6 @@ const COLOR_STYLES = [
   { bg: "#f0f9ff", border: "#0ea5e9", text: "#075985" }, // Sky
 ];
 
-const HOUR_WIDTH = 200; // Fixed width for each hour bucket
 const SLOT_HEIGHT = 110; // Fixed height for each class card in the stack
 
 const timeToMinutes = (time: string) => {
@@ -35,36 +34,28 @@ const TimelineView = ({
   enrolledCourseIds,
   selectedWeekday,
 }: TimelineViewProps) => {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const headerScrollRef = useRef<HTMLDivElement>(null);
-
-  // Sync horizontal scrolling between header and body
-  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (headerScrollRef.current) {
-      headerScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
-    }
-  };
-
-  // Set initial scroll to 8 AM
-  useEffect(() => {
-    if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollLeft = (8 - 5) * HOUR_WIDTH - 40;
-    }
-  }, []);
+  // No internal scroll syncing — layout will use full width and page scroll only.
 
   const daysToRender = useMemo(() => {
     return selectedWeekday === "All Days" ? WEEKDAYS : [selectedWeekday];
   }, [selectedWeekday]);
 
   const dayEvents = useMemo(() => {
-    const days: Record<string, { slots: Record<number, CourseCardItem[]>; count: number; maxInHour: number }> = {};
+    const days: Record<
+      string,
+      {
+        slots: Record<number, CourseCardItem[]>;
+        count: number;
+        maxInHour: number;
+      }
+    > = {};
     daysToRender.forEach((day) => {
       const eventsInDay = courses.filter((c) => c.day === day);
       const slots: Record<number, CourseCardItem[]> = {};
-      HOURS.forEach(h => slots[h] = []);
-      
+      HOURS.forEach((h) => (slots[h] = []));
+
       let maxInHour = 1;
-      eventsInDay.forEach(event => {
+      eventsInDay.forEach((event) => {
         const startMin = timeToMinutes(event.startTimeRaw || "00:00");
         const hour = Math.floor(startMin / 60);
         if (slots[hour]) {
@@ -78,128 +69,167 @@ const TimelineView = ({
     return days;
   }, [courses, daysToRender]);
 
-  const totalGridWidth = HOURS.length * HOUR_WIDTH;
+  // Calculate height for each hour based on max courses at that hour across all days
+  const hourHeights = useMemo(() => {
+    const heights: Record<number, number> = {};
+    HOURS.forEach((hour) => {
+      let maxCoursesAtHour = 1;
+      daysToRender.forEach((day) => {
+        const coursesAtHour = dayEvents[day]?.slots[hour]?.length || 0;
+        maxCoursesAtHour = Math.max(maxCoursesAtHour, coursesAtHour);
+      });
+      // Each course card is SLOT_HEIGHT, plus gap between them
+      const GAP = 8; // Gap between cards (mb-2 = 8px)
+      heights[hour] =
+        maxCoursesAtHour * SLOT_HEIGHT + (maxCoursesAtHour - 1) * GAP + 16; // padding
+    });
+    return heights;
+  }, [HOURS, daysToRender, dayEvents]);
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col shadow-sm animate-in fade-in duration-500">
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-visible flex flex-col shadow-sm animate-in fade-in duration-500">
       {/* Time Header */}
       <div className="flex border-b border-slate-200 bg-white sticky top-0 z-30">
         <div className="w-28 shrink-0 border-r border-slate-200 p-4 flex flex-col justify-center bg-white z-40">
-          <span className="font-bold text-slate-400 text-[10px] uppercase tracking-widest leading-none">Schedule</span>
-          <span className="text-xs font-black text-slate-900 mt-1">Weekly View</span>
+          <span className="font-bold text-slate-400 text-[10px] uppercase tracking-widest leading-none">
+            Schedule
+          </span>
+          <span className="text-xs font-black text-slate-900 mt-1">
+            Weekly View
+          </span>
         </div>
-        <div 
-          ref={headerScrollRef}
-          className="flex-1 overflow-hidden flex pointer-events-none bg-slate-50/30"
-        >
-          <div className="flex" style={{ width: totalGridWidth }}>
+        <div className="flex-1 grid grid-cols-7">
+          {WEEKDAYS.map((day) => (
+            <div
+              key={day}
+              className="text-center p-3 border-r border-slate-200 bg-slate-50/30"
+            >
+              <div className="font-black text-slate-800">{day}</div>
+              <div className="mt-1 px-2 py-0.5 rounded-full bg-slate-100 text-[9px] font-bold text-slate-500 uppercase">
+                {dayEvents[day]?.count || 0}{" "}
+                {dayEvents[day]?.count === 1 ? "Session" : "Sessions"}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Days Body: left column shows hours vertically; weekdays columns show stacked events per hour. */}
+      <div className="relative bg-white">
+        <div className="flex">
+          {/* Time labels column */}
+          <div className="w-28 shrink-0 border-r border-slate-200 bg-white">
             {HOURS.map((hour) => (
-              <div 
-                key={hour} 
-                className="shrink-0 border-r border-slate-200 p-3 text-[10px] font-bold text-slate-500 flex items-center justify-center"
-                style={{ width: HOUR_WIDTH }}
+              <div
+                key={hour}
+                className="p-3 border-b border-slate-100 flex items-center justify-center text-[10px] font-bold text-slate-500"
+                style={{ minHeight: hourHeights[hour] || SLOT_HEIGHT }}
               >
-                <div className="bg-white px-4 py-1.5 rounded-xl shadow-xs border border-slate-200 text-slate-700 font-black">
-                  {hour % 12 === 0 ? 12 : hour % 12}:00 {hour >= 12 ? "PM" : "AM"}
+                <div className="bg-white px-3 py-1 rounded text-slate-700 font-black">
+                  {hour % 12 === 0 ? 12 : hour % 12}:00{" "}
+                  {hour >= 12 ? "PM" : "AM"}
                 </div>
               </div>
             ))}
           </div>
-        </div>
-      </div>
 
-      {/* Days Body */}
-      <div 
-        ref={scrollContainerRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-auto max-h-[750px] relative scroll-smooth bg-white"
-      >
-        {daysToRender.map((day) => {
-          const { slots, maxInHour } = dayEvents[day] || { slots: {}, maxInHour: 1 };
-          const height = Math.max(1, maxInHour) * SLOT_HEIGHT;
+          {/* Weekday columns — fill remaining width so no horizontal scroll */}
+          <div className="flex-1 grid grid-cols-7">
+            {WEEKDAYS.map((day) => {
+              const { slots } = dayEvents[day] || { slots: {} };
+              return (
+                <div key={day} className="border-r border-slate-100">
+                  {HOURS.map((hour, idx) => (
+                    <div
+                      key={hour}
+                      className={`${idx % 2 === 0 ? "bg-slate-50/20" : "bg-white"} p-2 border-b border-slate-100`}
+                      style={{ minHeight: hourHeights[hour] || SLOT_HEIGHT }}
+                    >
+                      {(slots[hour] || []).map((event) => {
+                        const isEnrolled = enrolledCourseIds.includes(event.id);
+                        const colorStyle =
+                          COLOR_STYLES[
+                            courses.findIndex((c) => c.id === event.id) %
+                              COLOR_STYLES.length
+                          ];
+                        const spotsColor =
+                          event.spots === 0
+                            ? "#ef4444"
+                            : event.spots < 5
+                              ? "#f59e0b"
+                              : "#10b981";
 
-          return (
-            <div key={day} className="flex border-b border-slate-200 last:border-0 group min-w-fit relative">
-              {/* Day Label - Sticky column */}
-              <div 
-                className="w-28 shrink-0 border-r border-slate-200 flex flex-col items-center justify-center bg-white group-hover:bg-slate-50 transition-colors sticky left-0 z-20"
-                style={{ height }}
-              >
-                <span className="text-base font-black text-slate-800">{day}</span>
-                <div className="mt-1 px-2 py-0.5 rounded-full bg-slate-100 text-[9px] font-bold text-slate-500 uppercase">
-                  {(dayEvents[day]?.count || 0)} {(dayEvents[day]?.count === 1 ? 'Session' : 'Sessions')}
-                </div>
-              </div>
-
-              {/* Grid Columns */}
-              <div className="flex relative shrink-0" style={{ width: totalGridWidth, height }}>
-                {HOURS.map((hour, idx) => (
-                  <div 
-                    key={hour} 
-                    className={`shrink-0 border-r border-slate-200/80 relative flex flex-col p-1.5 gap-1.5 ${idx % 2 === 0 ? 'bg-slate-50/20' : 'bg-white'}`}
-                    style={{ width: HOUR_WIDTH, height }}
-                  >
-                    {slots[hour]?.map((event) => {
-                      const isEnrolled = enrolledCourseIds.includes(event.id);
-                      const colorStyle = COLOR_STYLES[courses.findIndex(c => c.id === event.id) % COLOR_STYLES.length];
-                      const spotsColor = event.spots === 0 ? "#ef4444" : event.spots < 5 ? "#f59e0b" : "#10b981";
-
-                      return (
-                        <div
-                          key={event.id}
-                          onClick={() => onEventClick(event)}
-                          className="sx__event-card-wrapper shrink-0"
-                          style={{
-                            backgroundColor: colorStyle.bg,
-                            borderLeft: `4px solid ${colorStyle.border}`,
-                            height: SLOT_HEIGHT - 12,
-                            width: "100%",
-                            display: "flex",
-                            flexDirection: "column",
-                            borderRadius: "8px",
-                            cursor: "pointer",
-                            overflow: "hidden",
-                            boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-                          }}
-                        >
-                          <div className="sx__event-card-inner">
-                            <div className="sx__event-card-header">
-                              <span className="sx__event-card-emoji">{event.image}</span>
-                              <span className="sx__event-card-title flex-1 min-w-0" style={{ color: colorStyle.text }}>
-                                {event.title}
-                              </span>
-                              {isEnrolled && <span className="sx__event-enrolled-dot" />}
-                            </div>
-
-                            <div className="sx__event-card-instructor">
-                              <Icons.User className="w-3.5 h-3.5" />
-                              <span className="truncate">{event.instructor}</span>
-                            </div>
-
-                            <div className="sx__event-card-footer">
-                              <div
-                                className="sx__event-status-badge"
-                                style={{ backgroundColor: `${spotsColor}20`, color: spotsColor }}
-                              >
-                                <div
-                                  className="sx__event-status-dot"
-                                  style={{ backgroundColor: spotsColor }}
-                                />
-                                <span>
-                                  {event.spots === 0 ? "Full" : `${event.spots} spots left`}
+                        return (
+                          <div
+                            key={event.id}
+                            onClick={() => onEventClick(event)}
+                            className="sx__event-card-wrapper mb-2"
+                            style={{
+                              backgroundColor: colorStyle.bg,
+                              borderLeft: `4px solid ${colorStyle.border}`,
+                              minHeight: SLOT_HEIGHT - 12,
+                              width: "100%",
+                              display: "flex",
+                              flexDirection: "column",
+                              borderRadius: "8px",
+                              cursor: "pointer",
+                              overflow: "hidden",
+                              boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
+                            }}
+                          >
+                            <div className="sx__event-card-inner">
+                              <div className="sx__event-card-header">
+                                <span className="sx__event-card-emoji">
+                                  {event.image}
                                 </span>
+                                <span
+                                  className="sx__event-card-title flex-1 min-w-0"
+                                  style={{ color: colorStyle.text }}
+                                >
+                                  {event.title}
+                                </span>
+                                {isEnrolled && (
+                                  <span className="sx__event-enrolled-dot" />
+                                )}
+                              </div>
+
+                              <div className="sx__event-card-instructor">
+                                <Icons.User className="w-3.5 h-3.5" />
+                                <span className="truncate">
+                                  {event.instructor}
+                                </span>
+                              </div>
+
+                              <div className="sx__event-card-footer">
+                                <div
+                                  className="sx__event-status-badge"
+                                  style={{
+                                    backgroundColor: `${spotsColor}20`,
+                                    color: spotsColor,
+                                  }}
+                                >
+                                  <div
+                                    className="sx__event-status-dot"
+                                    style={{ backgroundColor: spotsColor }}
+                                  />
+                                  <span>
+                                    {event.spots === 0
+                                      ? "Full"
+                                      : `${event.spots} spots left`}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <div className="bg-slate-50 px-6 py-3 border-t border-slate-100 flex items-center justify-between text-[10px] font-medium text-slate-400">
@@ -309,6 +339,6 @@ const TimelineView = ({
       `}</style>
     </div>
   );
-};
+};;
 
 export default TimelineView;

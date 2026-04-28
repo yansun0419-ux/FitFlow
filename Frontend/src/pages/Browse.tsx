@@ -222,7 +222,7 @@ const mapClassToCard = (course: BackendClass): CourseCardItem => ({
   title: course.name,
   code: course.course_code,
   description: course.description,
-  instructor: "TBD Coach",
+  instructor: course.instructor || "TBD Coach",
   time: formatTime(course.start_time),
   startTimeRaw: toInputTime(course.start_time),
   endTimeRaw: toInputTime(course.end_time),
