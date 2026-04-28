@@ -131,8 +131,9 @@ func validateEnrollmentWindow(class *model.Course, now time.Time) error {
 		return errors.New("invalid class schedule")
 	}
 
-	loc := now.Location()
-	nextStart := time.Date(now.Year(), now.Month(), now.Day(), class.StartTime.Hour(), class.StartTime.Minute(), 0, 0, loc)
+	// Use UTC for all time calculations to ensure consistency across timezones
+	now = now.UTC()
+	nextStart := time.Date(now.Year(), now.Month(), now.Day(), class.StartTime.Hour(), class.StartTime.Minute(), 0, 0, time.UTC)
 
 	daysAhead := (int(targetWeekday) - int(now.Weekday()) + 7) % 7
 	nextStart = nextStart.AddDate(0, 0, daysAhead)
