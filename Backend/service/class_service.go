@@ -111,6 +111,8 @@ func normalizeWeekday(value string) string {
 }
 
 // validateEnrollmentWindow enforces that enrollment opens 25 hours before the next class start.
+// NOTE: All times (now and class.StartTime) are in server's LOCAL timezone.
+// This function assumes the server's TZ environment variable is correctly set.
 func validateEnrollmentWindow(class *model.Course, now time.Time) error {
 	if class == nil || class.StartTime.Time.IsZero() {
 		return errors.New("invalid class schedule")
@@ -131,9 +133,8 @@ func validateEnrollmentWindow(class *model.Course, now time.Time) error {
 		return errors.New("invalid class schedule")
 	}
 
-	// Use UTC for all time calculations to ensure consistency across timezones
-	now = now.UTC()
-	nextStart := time.Date(now.Year(), now.Month(), now.Day(), class.StartTime.Hour(), class.StartTime.Minute(), 0, 0, time.UTC)
+	loc := now.Location()
+	nextStart := time.Date(now.Year(), now.Month(), now.Day(), class.StartTime.Hour(), class.StartTime.Minute(), 0, 0, loc)
 
 	daysAhead := (int(targetWeekday) - int(now.Weekday()) + 7) % 7
 	nextStart = nextStart.AddDate(0, 0, daysAhead)
