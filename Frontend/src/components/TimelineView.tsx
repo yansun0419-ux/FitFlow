@@ -6,7 +6,7 @@ interface TimelineViewProps {
   courses: CourseCardItem[];
   onEventClick: (course: CourseCardItem) => void;
   enrolledCourseIds: number[];
-  selectedWeekday: string;
+  selectedWeekdays: string[];
 }
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -32,13 +32,13 @@ const TimelineView = ({
   courses,
   onEventClick,
   enrolledCourseIds,
-  selectedWeekday,
+  selectedWeekdays,
 }: TimelineViewProps) => {
   // No internal scroll syncing — layout will use full width and page scroll only.
 
   const daysToRender = useMemo(() => {
-    return selectedWeekday === "All Days" ? WEEKDAYS : [selectedWeekday];
-  }, [selectedWeekday]);
+    return selectedWeekdays.length > 0 ? selectedWeekdays : WEEKDAYS;
+  }, [selectedWeekdays]);
 
   const dayEvents = useMemo(() => {
     const days: Record<
