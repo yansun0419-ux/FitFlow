@@ -339,12 +339,6 @@ const Browse = () => {
       return;
     }
 
-    const windowState = getEnrollmentWindow(course, new Date(clockTick));
-    if (!windowState.canBook) {
-      toast.error(windowState.message || "Enrollment is not open yet.");
-      return;
-    }
-
     const scrollY = window.scrollY;
     setBooking(true);
     try {
