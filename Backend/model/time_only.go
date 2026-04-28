@@ -71,9 +71,10 @@ func (t *TimeOnly) parseString(value string) error {
 		return nil
 	}
 
-	parsed, err := time.ParseInLocation(timeOnlyLayout, value, time.Local)
+	// Use UTC for consistent timezone handling across all deployments
+	parsed, err := time.ParseInLocation(timeOnlyLayout, value, time.UTC)
 	if err != nil {
-		parsed, err = time.ParseInLocation(timeOnlyShortLayout, value, time.Local)
+		parsed, err = time.ParseInLocation(timeOnlyShortLayout, value, time.UTC)
 		if err != nil {
 			return errors.New("invalid time format for TimeOnly")
 		}
