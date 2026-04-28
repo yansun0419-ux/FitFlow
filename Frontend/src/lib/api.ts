@@ -192,6 +192,7 @@ export type BackendClass = {
   duration: number;
   category: string;
   weekday: string;
+  instructor?: string;
   spot: number;
 };
 
