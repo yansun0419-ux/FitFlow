@@ -1,28 +1,70 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { NavLink, useNavigate, Link } from "react-router-dom";
 import { Icons } from "../lib/icons";
 import Button from "./ui/Button";
 import { useAuthStore } from "../store/authStore";
 import toast from "react-hot-toast";
+import { getProfileRequest, type UserProfile } from "../lib/api";
+
+const initialProfileState: UserProfile = {
+  name: "",
+  email: "",
+  avatar_url: "",
+  date_of_birth: "",
+  gender: "",
+  phone_number: "",
+  address: "",
+};
 
 const Navbar = () => {
-  const {
-    isAuthenticated,
-    logout,
-    role,
-  } = useAuthStore();
+  const { isAuthenticated, logout, role, token } = useAuthStore();
   const navigate = useNavigate();
-  const profileName =
-    role === "instructor"
-      ? "Instructor"
-      : role === "manager" || role === "supermanager"
-        ? "Manager"
-        : "User";
+
+  const [formData, setFormData] = useState<UserProfile>(initialProfileState);
+
+  const loadProfile = useCallback(async () => {
+    if (!isAuthenticated || !token) {
+      setFormData(initialProfileState);
+      return;
+    }
+
+    try {
+      const data = await getProfileRequest(token);
+      setFormData({
+        name: data.name || "",
+        email: data.email || "",
+        avatar_url: data.avatar_url || "",
+        date_of_birth: data.date_of_birth || "",
+        gender: data.gender || "",
+        phone_number: data.phone_number || "",
+        address: data.address || "",
+      });
+    } catch {
+      setFormData(initialProfileState);
+    }
+  }, [isAuthenticated, token]);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
+
+  useEffect(() => {
+    const handleProfileUpdated = () => {
+      void loadProfile();
+    };
+
+    window.addEventListener("profile-updated", handleProfileUpdated);
+    return () => {
+      window.removeEventListener("profile-updated", handleProfileUpdated);
+    };
+  }, [loadProfile]);
 
   const avatarFallback = useMemo(() => {
-    const name = profileName || "User";
+    const name = formData.name.trim() || "User";
     return `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=6366f1&color=ffffff`;
-  }, [profileName]);
+  }, [formData.name]);
+
+  const avatarPreview = formData.avatar_url.trim() || avatarFallback;
 
   const handleLogout = () => {
     navigate("/");
@@ -115,7 +157,7 @@ const Navbar = () => {
                   }
                 >
                   <img
-                    src={avatarFallback}
+                    src={avatarPreview}
                     alt="Profile"
                     onError={(event) => {
                       event.currentTarget.src = avatarFallback;

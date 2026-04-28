@@ -192,6 +192,7 @@ export type BackendClass = {
   duration: number;
   category: string;
   weekday: string;
+  instructor?: string;
   spot: number;
 };
 
@@ -392,15 +393,27 @@ export type UserListItem = {
   name: string;
   email: string;
   avatar_url?: string;
-  role: string;
+  role_id: number;
+  role: {
+    id: number;
+    role_name: string;
+  };
 };
 
 export type ListUsersResponse = {
   users: UserListItem[];
 };
 
-export const listStudentsRequest = (token: string) =>
-  authRequest<ListUsersResponse>("/manager/users", "GET", token);
+export const listStudentsRequest = (
+  token: string,
+  page: number = 1,
+  limit: number = 20,
+) =>
+  authRequest<ListUsersResponse>(
+    `/manager/users?page=${page}&limit=${limit}`,
+    "GET",
+    token,
+  );
 
 export const getUserAnalyticsRequest = (
   token: string,
