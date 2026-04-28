@@ -145,58 +145,52 @@ const CourseDetailsModal = ({
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="flex gap-3">
             <Button variant="secondary" onClick={onClose} className="w-full">
               Cancel
             </Button>
-            <div className="grid grid-cols-1 gap-3">
-              <Button
-                variant={
-                  enrolled
-                    ? "danger"
-                    : course.spots === 0
-                      ? "outline"
-                      : "primary"
+            <Button
+              variant={
+                enrolled ? "danger" : course.spots === 0 ? "outline" : "primary"
+              }
+              className="w-full shadow-lg shadow-indigo-200"
+              disabled={!enrolled && bookingLocked}
+              onClick={() => {
+                if (enrolled) {
+                  if (onDrop) {
+                    onDrop(course);
+                    return;
+                  }
+                  return;
                 }
-                className="w-full shadow-lg shadow-indigo-200"
-                disabled={!enrolled && bookingLocked}
-                onClick={() => {
-                  if (enrolled) {
-                    if (onDrop) {
-                      onDrop(course);
-                      return;
-                    }
-                    return;
-                  }
-                  if (onBook) {
-                    onBook(course);
-                    return;
-                  }
-                  onClose();
-                }}
+                if (onBook) {
+                  onBook(course);
+                  return;
+                }
+                onClose();
+              }}
+            >
+              {enrolled
+                ? dropping
+                  ? "Dropping..."
+                  : "Drop"
+                : booking
+                  ? "Booking..."
+                  : bookingLocked
+                    ? "Locked"
+                    : course.spots === 0
+                      ? "Join Waitlist"
+                      : "Book Now"}
+            </Button>
+            {onViewRoster && (
+              <Button
+                variant="secondary"
+                className="w-full"
+                onClick={() => onViewRoster(course)}
               >
-                {enrolled
-                  ? dropping
-                    ? "Dropping..."
-                    : "Drop"
-                  : booking
-                    ? "Booking..."
-                    : bookingLocked
-                      ? "Locked"
-                      : course.spots === 0
-                        ? "Join Waitlist"
-                        : "Book Now"}
+                View Roster
               </Button>
-              {onViewRoster && (
-                <Button
-                  variant="secondary"
-                  className="w-full"
-                  onClick={() => onViewRoster(course)}
-                >
-                  View Roster
-                </Button>
-              )}
-            </div>
+            )}
           </div>
         </div>
       </div>
