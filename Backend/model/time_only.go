@@ -71,10 +71,12 @@ func (t *TimeOnly) parseString(value string) error {
 		return nil
 	}
 
-	// Use UTC for consistent timezone handling across all deployments
-	parsed, err := time.ParseInLocation(timeOnlyLayout, value, time.UTC)
+	// NOTE: Course times are stored in server's LOCAL timezone context.
+	// For correct operation, all servers MUST have the same TZ environment variable set.
+	// Example for UTC-4: export TZ=America/New_York
+	parsed, err := time.ParseInLocation(timeOnlyLayout, value, time.Local)
 	if err != nil {
-		parsed, err = time.ParseInLocation(timeOnlyShortLayout, value, time.UTC)
+		parsed, err = time.ParseInLocation(timeOnlyShortLayout, value, time.Local)
 		if err != nil {
 			return errors.New("invalid time format for TimeOnly")
 		}
