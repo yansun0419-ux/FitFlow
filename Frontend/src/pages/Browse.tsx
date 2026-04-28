@@ -241,8 +241,9 @@ const Browse = () => {
     "timeline",
   );
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string>("All Categories");
-  const [selectedWeekday, setSelectedWeekday] = useState<string>("All Days");
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [selectedWeekdays, setSelectedWeekdays] =
+    useState<string[]>(WEEKDAY_OPTIONS);
   const [selectedCourse, setSelectedCourse] = useState<CourseCardItem | null>(
     null,
   );
@@ -271,6 +272,8 @@ const Browse = () => {
   const [rosterLoading, setRosterLoading] = useState(false);
   const [rosterItems, setRosterItems] = useState<ClassEnrollmentItem[]>([]);
   const [clockTick, setClockTick] = useState(Date.now());
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [weekdayDropdownOpen, setWeekdayDropdownOpen] = useState(false);
 
   const canManageClasses = role === "manager" || role === "supermanager";
 
@@ -420,10 +423,51 @@ const Browse = () => {
 
   const categories = useMemo(() => {
     const cats = new Set(courses.map((c) => c.type));
-    return ["All Categories", ...Array.from(cats)].sort();
+    return Array.from(cats).sort();
   }, [courses]);
 
-  const weekdays = ["All Days", ...WEEKDAY_OPTIONS];
+  useEffect(() => {
+    if (categories.length === 0) {
+      return;
+    }
+
+    setSelectedCategories((current) => {
+      if (current.length === 0) {
+        return categories;
+      }
+
+      const next = current.filter((category) => categories.includes(category));
+      return next.length > 0 ? next : categories;
+    });
+  }, [categories]);
+
+  const toggleCategory = (category: string) => {
+    if (selectedCategories.includes(category)) {
+      const next = selectedCategories.filter((item) => item !== category);
+      if (next.length === 0) {
+        toast.error("At least one course type must be selected.");
+        return;
+      }
+      setSelectedCategories(next);
+      return;
+    }
+
+    setSelectedCategories([...selectedCategories, category]);
+  };
+
+  const toggleWeekday = (weekday: string) => {
+    if (selectedWeekdays.includes(weekday)) {
+      const next = selectedWeekdays.filter((item) => item !== weekday);
+      if (next.length === 0) {
+        toast.error("At least one weekday must be selected.");
+        return;
+      }
+      setSelectedWeekdays(next);
+      return;
+    }
+
+    setSelectedWeekdays([...selectedWeekdays, weekday]);
+  };
 
   const filteredCourses = useMemo(() => {
     return courses.filter((course) => {
@@ -434,17 +478,38 @@ const Browse = () => {
         course.type.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesCategory =
-        selectedCategory === "All Categories" || course.type === selectedCategory;
+        selectedCategories.length === 0 ||
+        selectedCategories.includes(course.type);
 
       const matchesWeekday =
-        selectedWeekday === "All Days" || course.day === selectedWeekday;
+        selectedWeekdays.length === 0 || selectedWeekdays.includes(course.day);
 
       return matchesSearch && matchesCategory && matchesWeekday;
     });
-  }, [courses, searchQuery, selectedCategory, selectedWeekday]);
+  }, [courses, searchQuery, selectedCategories, selectedWeekdays]);
 
   const isEnrolledCourse = (courseId: number) =>
     enrolledCourseIds.includes(courseId);
+
+  const allCategoriesSelected =
+    categories.length > 0 && selectedCategories.length === categories.length;
+  const allWeekdaysSelected =
+    WEEKDAY_OPTIONS.length > 0 &&
+    selectedWeekdays.length === WEEKDAY_OPTIONS.length;
+
+  const resetFilters = () => {
+    setSearchQuery("");
+    setSelectedCategories(categories);
+    setSelectedWeekdays(WEEKDAY_OPTIONS);
+  };
+
+  const selectedWeekdayLabel = allWeekdaysSelected
+    ? "All Days"
+    : `${selectedWeekdays.length} selected`;
+
+  const selectedCategoryLabel = allCategoriesSelected
+    ? "All Categories"
+    : `${selectedCategories.length} selected`;
 
   const currentPreviewTime = new Date(clockTick);
 
@@ -669,7 +734,7 @@ const Browse = () => {
           </p>
         </div>
 
-        <div className="flex flex-col lg:flex-row items-center gap-3 w-full md:w-auto">
+        <div className="flex flex-col lg:flex-row items-start gap-3 w-full md:w-auto">
           <div className="relative w-full sm:w-64">
             <Icons.Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -681,37 +746,85 @@ const Browse = () => {
             />
           </div>
 
-          <div className="relative w-full sm:w-auto">
-            <select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-              className="w-full sm:w-auto pl-4 pr-9 h-10 text-xs rounded-full border border-slate-200 bg-white/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all outline-hidden appearance-none cursor-pointer font-bold text-slate-600 shadow-sm"
-            >
-              {categories.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
-            <div className="absolute right-3 top-0 bottom-0 flex items-center pointer-events-none">
-              <span className="text-slate-400 text-xs">v</span>
-            </div>
-          </div>
+          <div className="w-full sm:w-auto flex gap-3">
+            <div className="relative w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoryDropdownOpen((prev) => !prev);
+                  setWeekdayDropdownOpen(false);
+                }}
+                className="w-full sm:w-auto pl-3 pr-8 h-10 text-xs rounded-full border border-slate-200 bg-white/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all outline-hidden cursor-pointer font-bold text-slate-600 shadow-sm text-left"
+              >
+                {selectedCategoryLabel}
+              </button>
+              <div className="absolute right-3 top-0 bottom-0 flex items-center pointer-events-none">
+                <span className="text-slate-400 text-xs">v</span>
+              </div>
 
-          <div className="relative w-full sm:w-auto">
-            <select
-              value={selectedWeekday}
-              onChange={(e) => setSelectedWeekday(e.target.value)}
-              className="w-full sm:w-auto pl-4 pr-9 h-10 text-xs rounded-full border border-slate-200 bg-white/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all outline-hidden appearance-none cursor-pointer font-bold text-slate-600 shadow-sm"
-            >
-              {weekdays.map((day) => (
-                <option key={day} value={day}>
-                  {day}
-                </option>
-              ))}
-            </select>
-            <div className="absolute right-3 top-0 bottom-0 flex items-center pointer-events-none">
-              <span className="text-slate-400 text-xs">v</span>
+              {categoryDropdownOpen && (
+                <div className="absolute z-40 mt-2 w-full sm:w-60 rounded-2xl border border-slate-200 bg-white shadow-lg p-3">
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
+                    Course Types
+                  </p>
+                  <div className="grid grid-cols-1 gap-2 max-h-52 overflow-y-auto pr-1">
+                    {categories.map((cat) => (
+                      <label
+                        key={cat}
+                        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 cursor-pointer hover:border-indigo-200 hover:bg-indigo-50/40 transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.includes(cat)}
+                          onChange={() => toggleCategory(cat)}
+                          className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="truncate">{cat}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="relative w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  setWeekdayDropdownOpen((prev) => !prev);
+                  setCategoryDropdownOpen(false);
+                }}
+                className="w-full sm:w-auto pl-3 pr-8 h-10 text-xs rounded-full border border-slate-200 bg-white/50 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 transition-all outline-hidden cursor-pointer font-bold text-slate-600 shadow-sm text-left"
+              >
+                {selectedWeekdayLabel}
+              </button>
+              <div className="absolute right-3 top-0 bottom-0 flex items-center pointer-events-none">
+                <span className="text-slate-400 text-xs">v</span>
+              </div>
+
+              {weekdayDropdownOpen && (
+                <div className="absolute z-40 mt-2 w-full sm:w-52 rounded-2xl border border-slate-200 bg-white shadow-lg p-3">
+                  <p className="text-xs font-black uppercase tracking-widest text-slate-500 mb-2">
+                    Weekdays
+                  </p>
+                  <div className="grid grid-cols-1 gap-2">
+                    {WEEKDAY_OPTIONS.map((day) => (
+                      <label
+                        key={day}
+                        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 cursor-pointer hover:border-indigo-200 hover:bg-indigo-50/40 transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedWeekdays.includes(day)}
+                          onChange={() => toggleWeekday(day)}
+                          className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span>{day}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -760,7 +873,7 @@ const Browse = () => {
           courses={filteredCourses}
           onEventClick={handleCourseSelect}
           enrolledCourseIds={enrolledCourseIds}
-          selectedWeekday={selectedWeekday}
+          selectedWeekdays={selectedWeekdays}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -896,9 +1009,7 @@ const Browse = () => {
               </p>
               <button
                 onClick={() => {
-                  setSearchQuery("");
-                  setSelectedCategory("All Categories");
-                  setSelectedWeekday("All Days");
+                  resetFilters();
                 }}
                 className="text-indigo-600 font-semibold text-sm mt-2 hover:underline"
               >
